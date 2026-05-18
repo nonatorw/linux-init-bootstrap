@@ -19,7 +19,7 @@ install_packages() {
       libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev \
       libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev \
       libffi-dev liblzma-dev \
-      eza bat jq unzip zip
+      eza bat jq unzip zip socat
   elif [[ "$PKG_MANAGER" == "dnf" ]]; then
     sudo dnf update -y
     pkg_install \

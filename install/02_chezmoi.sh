@@ -9,6 +9,6 @@ install_chezmoi() {
     return 0
   fi
   echo "[chezmoi] Installing chezmoi..."
-  pkg_install chezmoi
+  sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME/.local/bin"
   echo "[chezmoi] chezmoi: $(chezmoi --version)"
 }

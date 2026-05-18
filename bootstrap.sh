@@ -44,6 +44,10 @@ _run_install() {
            "$HOME/Dev/tools/ai/gemini-config" \
            "$HOME/Dev/repos"
 
+  # ~/.ssh com permissões correctas — sem chaves locais, tudo via 1Password
+  mkdir -p "$HOME/.ssh"
+  chmod 700 "$HOME/.ssh"
+
   for module in  "$DOTFILES_DIR/install/00_packages.sh" \
                  "$DOTFILES_DIR/install/01_shell.sh" \
                  "$DOTFILES_DIR/install/02_chezmoi.sh" \
@@ -74,6 +78,28 @@ _run_install
 
 echo ""
 success "Bootstrap complete! Tools installed."
+
+# WSL2: verificar pré-requisito do 1Password SSH agent (npiperelay)
+if [[ "$PLATFORM" == "wsl2" ]]; then
+  echo ""
+  header "1Password SSH Agent (WSL2)"
+  _NPIPERELAY_PATH="/mnt/c/Users/${USER}/AppData/Local/Microsoft/WinGet/Links/npiperelay.exe"
+  # Tenta path alternativo com username Windows diferente do Linux
+  if [[ ! -x "$_NPIPERELAY_PATH" ]]; then
+    _NPIPERELAY_PATH="$(find /mnt/c/Users/*/AppData/Local/Microsoft/WinGet/Links/npiperelay.exe 2>/dev/null | head -1)"
+  fi
+  if [[ -x "$_NPIPERELAY_PATH" ]]; then
+    success "npiperelay found: $_NPIPERELAY_PATH"
+    info "SSH agent relay will start automatically via dev_configs.sh"
+  else
+    warn "npiperelay.exe not found — 1Password SSH agent will not work in WSL2"
+    warn "Install it on Windows: winget install jstarks.npiperelay"
+    warn "Then ensure 1Password Developer settings have 'Use SSH agent' enabled"
+    warn "See README.md for full setup instructions"
+  fi
+  unset _NPIPERELAY_PATH
+fi
+
 echo ""
 info "Next step — apply dotfiles:"
 info "  chezmoi init --apply git@github.com:nonatorw/chezmoi-dotfiles.git"

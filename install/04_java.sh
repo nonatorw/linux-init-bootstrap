@@ -15,16 +15,6 @@ install_java() {
   echo "[java] Configuring Java environment..."
   _install_sdkman
 
-  # Se --reinstall foi usado e o usuário optou por manter o SDKman
-  # (ferramenta estava no path padrão e usuário disse N),
-  # os SDKs já estão instalados — não há necessidade de verificar/instalar
-  if $DO_REINSTALL && [[ "${REINSTALL_JAVA:-false}" == "false" ]]; then
-    echo "[java] SDKman kept — skipping SDK installs"
-    _configure_gradle
-    _configure_maven
-    return 0
-  fi
-
   # sdk e seus scripts internos usam parâmetros opcionais ($3, etc.) que ficam
   # unbound no bash com set -u; desliga temporariamente para todas as chamadas sdk
   set +u
