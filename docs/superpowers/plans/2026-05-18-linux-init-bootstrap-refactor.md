@@ -54,23 +54,23 @@ linux-init-bootstrap/
 
 ## File Map
 
-| File | Action |
-| ---- | ------ |
-| `bootstrap.sh` | **Modify**: remove ALL flags (`--install`, `--link`, `--reinstall`), remove `link.sh` call, update module list, update final message |
-| `install/01_shell.sh` | **Modify**: remove `z` plugin (keep `zsh-z`); add `GIT_CONFIG_NOSYSTEM=1 HOME=/tmp` to all `git clone` calls |
-| `install/02_chezmoi.sh` | **Create**: installs chezmoi via `pkg_install` |
-| `install/02_python.sh` | **Rename** → `install/03_python.sh`; add `_install_uv()`; add `GIT_CONFIG_NOSYSTEM=1 HOME=/tmp` to pyenv clone |
-| `install/03_java.sh` | **Rename** → `install/04_java.sh`; fix `sdk install java` (no version pin) |
-| `install/04_node.sh` | **Rename** → `install/05_node.sh`; add `GIT_CONFIG_NOSYSTEM=1 HOME=/tmp` to NVM clone |
-| `install/05_ai.sh` | **Rename** → `install/06_ai.sh`; fix `_init_gemini_dir` path |
-| `install/06_containers.sh` | **Rename** → `install/07_containers.sh` (no content changes) |
-| `link.sh` | **Delete** |
-| `local-bin/` | **Delete** entire directory |
-| `git/` | **Delete** entire directory |
-| `claude/` | **Delete** entire directory |
-| `java/` | **Delete** entire directory |
-| `zsh/` | **Delete** entire directory (after bootstrap confirmed working) |
-| `plan-refactoring-nonatorw-dotfiles.md` | **Delete** (superseded) |
+| File                                    | Action                                                                                                                               |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `bootstrap.sh`                          | **Modify**: remove ALL flags (`--install`, `--link`, `--reinstall`), remove `link.sh` call, update module list, update final message |
+| `install/01_shell.sh`                   | **Modify**: remove `z` plugin (keep `zsh-z`); add `GIT_CONFIG_NOSYSTEM=1 HOME=/tmp` to all `git clone` calls                         |
+| `install/02_chezmoi.sh`                 | **Create**: installs chezmoi via `pkg_install`                                                                                       |
+| `install/02_python.sh`                  | **Rename** → `install/03_python.sh`; add `_install_uv()`; add `GIT_CONFIG_NOSYSTEM=1 HOME=/tmp` to pyenv clone                       |
+| `install/03_java.sh`                    | **Rename** → `install/04_java.sh`; fix `sdk install java` (no version pin)                                                           |
+| `install/04_node.sh`                    | **Rename** → `install/05_node.sh`; add `GIT_CONFIG_NOSYSTEM=1 HOME=/tmp` to NVM clone                                                |
+| `install/05_ai.sh`                      | **Rename** → `install/06_ai.sh`; fix `_init_gemini_dir` path                                                                         |
+| `install/06_containers.sh`              | **Rename** → `install/07_containers.sh` (no content changes)                                                                         |
+| `link.sh`                               | **Delete**                                                                                                                           |
+| `local-bin/`                            | **Delete** entire directory                                                                                                          |
+| `git/`                                  | **Delete** entire directory                                                                                                          |
+| `claude/`                               | **Delete** entire directory                                                                                                          |
+| `java/`                                 | **Delete** entire directory                                                                                                          |
+| `zsh/`                                  | **Delete** entire directory (after bootstrap confirmed working)                                                                      |
+| `plan-refactoring-nonatorw-dotfiles.md` | **Delete** (superseded)                                                                                                              |
 
 ---
 
