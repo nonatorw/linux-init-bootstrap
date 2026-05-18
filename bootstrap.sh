@@ -200,6 +200,7 @@ _apply_dotfiles() {
   ok "Dotfiles applied"
 }
 
+_setup_ssh_known_hosts
 _apply_dotfiles
 
 echo ""

@@ -24,7 +24,7 @@ _install_omz() {
   # Remove partial directory if it exists
   [[ -d "$OMZ_DIR" ]] && rm -rf "$OMZ_DIR"
   step "Installing Oh My Zsh..."
-  # RUNZSH=no evita que o installer troque o shell interativamente
+  # RUNZSH=no prevents the installer from switching the shell interactively
   RUNZSH=no CHSH=no \
     sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
   ok "Oh My Zsh installed"
@@ -32,7 +32,7 @@ _install_omz() {
 
 _install_p10k() {
   local p10k_dir="$OMZ_CUSTOM/themes/powerlevel10k"
-  # Verifica o arquivo principal do tema
+  # Check the main theme file
   if [[ -f "$p10k_dir/powerlevel10k.zsh-theme" ]]; then
     skip "Powerlevel10k"
     return 0

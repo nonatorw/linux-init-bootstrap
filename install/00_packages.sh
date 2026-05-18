@@ -39,8 +39,11 @@ install_packages() {
                 zip              \
                 socat
   elif [[ "$PKG_MANAGER" == "dnf" ]]; then
-    step "Updating dnf package index..."
-    sudo dnf update -y
+    step "Upgrading system packages..."
+    sudo dnf5 check-upgrade || true
+    sudo dnf5 upgrade -y
+    step "Installing system tool groups..."
+    sudo dnf5 group install -y system-tools admin-tools
     step "Installing build dependencies and base tools..."
     pkg_install gcc             \
                 make            \
@@ -63,7 +66,7 @@ install_packages() {
                 eza             \
                 bat             \
                 jq              \
-                unzip           \ 
+                unzip           \
                 zip             \
                 socat
   else
