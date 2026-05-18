@@ -5,6 +5,12 @@ Installs development tools, populates SSH known_hosts, clones
 [chezmoi-dotfiles](https://github.com/nonatorw/chezmoi-dotfiles), and applies dotfiles —
 all in a single command.
 
+> ## ATTENTION
+> **Pending verification:** The `setup-python`, `setup-dotfiles`, and `setup-ai` recipes in
+> `bluefin-template` have been updated but not yet tested on a live Bluefin machine. See
+> [docs/superpowers/plans/2026-05-18-linux-init-bootstrap-refactor.md](docs/superpowers/plans/2026-05-18-linux-init-bootstrap-refactor.md)
+> for details.
+
 ## Usage
 
 ```bash
