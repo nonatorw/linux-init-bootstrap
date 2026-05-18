@@ -23,13 +23,13 @@ detect_platform() {
           PLATFORM="silverblue"
           PKG_MANAGER="brew"
         elif [[ "${ID:-}" == "ubuntu" || "${ID:-}" == "debian" || "${ID_LIKE:-}" == *"debian"* ]]; then
-          PLATFORM="${is_wsl:+wsl2}"; PLATFORM="${PLATFORM:-linux}"
+          [[ "$is_wsl" == "true" ]] && PLATFORM="wsl2" || PLATFORM="linux"
           PKG_MANAGER="apt"
         elif [[ "${ID:-}" == "fedora" || "${ID_LIKE:-}" == *"fedora"* ]]; then
-          PLATFORM="${is_wsl:+wsl2}"; PLATFORM="${PLATFORM:-linux}"
+          [[ "$is_wsl" == "true" ]] && PLATFORM="wsl2" || PLATFORM="linux"
           PKG_MANAGER="dnf"
         else
-          PLATFORM="${is_wsl:+wsl2}"; PLATFORM="${PLATFORM:-linux}"
+          [[ "$is_wsl" == "true" ]] && PLATFORM="wsl2" || PLATFORM="linux"
           PKG_MANAGER="apt"
         fi
       elif $is_wsl; then

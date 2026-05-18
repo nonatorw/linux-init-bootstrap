@@ -124,10 +124,14 @@ success "Tools installed."
 # ------------------------------------------------------------
 if [[ "$PLATFORM" == "wsl2" ]]; then
   section_header "1Password SSH Agent (WSL2)"
-  _NPIPERELAY_PATH="/mnt/c/Users/${USER}/AppData/Local/Microsoft/WinGet/Links/npiperelay.exe"
-  if [[ ! -x "$_NPIPERELAY_PATH" ]]; then
-    _NPIPERELAY_PATH="$(find /mnt/c/Users/*/AppData/Local/Microsoft/WinGet/Links/npiperelay.exe 2>/dev/null | head -1)"
-  fi
+  _NPIPERELAY_PATH=""
+  for _candidate in \
+    /mnt/c/Users/*/AppData/Local/Microsoft/WinGet/Links/npiperelay.exe \
+    "/mnt/c/Program Files/WinGet/Links/npiperelay.exe" \
+    "/mnt/c/Program Files (x86)/WinGet/Links/npiperelay.exe"; do
+    [[ -x "$_candidate" ]] && { _NPIPERELAY_PATH="$_candidate"; break; }
+  done
+  unset _candidate
   if [[ -x "$_NPIPERELAY_PATH" ]]; then
     ok "npiperelay found: ${DIM}${_NPIPERELAY_PATH}${RESET}"
     step "SSH agent relay will start automatically via dev_configs.sh"
@@ -153,7 +157,7 @@ _setup_ssh_known_hosts() {
       skip "known_hosts: $host"
     else
       step "Fetching host key for $host..."
-      ssh-keyscan -t ed25519 "$host" >> "$known" 2>/dev/null
+      ssh-keyscan -t ed25519 "$host" >> "$known" 2>/dev/null || true
       ok "known_hosts: $host"
       (( added++ )) || true
     fi
@@ -182,7 +186,11 @@ _apply_dotfiles() {
     skip "chezmoi-dotfiles  ${DIM}($dest)${RESET}"
   else
     step "Cloning chezmoi-dotfiles to ${DIM}$dest${RESET}..."
-    GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone "$repo" "$dest"
+    if ! GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone "$repo" "$dest"; then
+      warn "Failed to clone $repo"
+      warn "Check: repo exists and is public, or run manually: git clone $repo $dest"
+      return 1
+    fi
     ok "chezmoi-dotfiles cloned"
   fi
 
@@ -196,12 +204,16 @@ _apply_dotfiles() {
   fi
 
   step "Applying dotfiles..."
-  "$chezmoi_bin" apply --force
+  if ! "$chezmoi_bin" apply --force; then
+    warn "chezmoi apply failed — dotfiles may be partially applied"
+    warn "Run manually: $chezmoi_bin apply --force"
+    return 1
+  fi
   ok "Dotfiles applied"
 }
 
-_setup_ssh_known_hosts
-_apply_dotfiles
+_setup_ssh_known_hosts || warn "SSH known_hosts setup had issues — continuing"
+_apply_dotfiles || warn "Dotfiles apply had issues — check warnings above"
 
 echo ""
 success "Bootstrap complete! Restart your terminal to apply all changes."
