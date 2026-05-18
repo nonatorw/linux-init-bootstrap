@@ -35,12 +35,12 @@ info "Platform: $PLATFORM | Package manager: $PKG_MANAGER"
 _run_install() {
   header "Installing development tools"
 
-  mkdir -p "$HOME/Dev/tools/python/pyenv" \
-           "$HOME/Dev/tools/python/poetry" \
-           "$HOME/Dev/tools/node/nvm" \
-           "$HOME/Dev/tools/java/sdkman" \
-           "$HOME/Dev/tools/ai/claude" \
-           "$HOME/Dev/tools/ai/gemini" \
+  mkdir -p "$HOME/Dev/tools/python/pyenv"     \
+           "$HOME/Dev/tools/python/poetry"    \
+           "$HOME/Dev/tools/node/nvm"         \
+           "$HOME/Dev/tools/java/sdkman"      \
+           "$HOME/Dev/tools/ai/claude"        \
+           "$HOME/Dev/tools/ai/gemini"        \
            "$HOME/Dev/tools/ai/gemini-config" \
            "$HOME/Dev/repos"
 
@@ -48,13 +48,13 @@ _run_install() {
   mkdir -p "$HOME/.ssh"
   chmod 700 "$HOME/.ssh"
 
-  for module in  "$DOTFILES_DIR/install/00_packages.sh" \
-                 "$DOTFILES_DIR/install/01_shell.sh" \
-                 "$DOTFILES_DIR/install/02_chezmoi.sh" \
-                 "$DOTFILES_DIR/install/03_python.sh" \
-                 "$DOTFILES_DIR/install/04_java.sh" \
-                 "$DOTFILES_DIR/install/05_node.sh" \
-                 "$DOTFILES_DIR/install/06_ai.sh" \
+  for module in  "$DOTFILES_DIR/install/00_packages.sh"   \
+                 "$DOTFILES_DIR/install/01_shell.sh"      \
+                 "$DOTFILES_DIR/install/02_chezmoi.sh"    \
+                 "$DOTFILES_DIR/install/03_python.sh"     \
+                 "$DOTFILES_DIR/install/04_java.sh"       \
+                 "$DOTFILES_DIR/install/05_node.sh"       \
+                 "$DOTFILES_DIR/install/06_ai.sh"         \
                  "$DOTFILES_DIR/install/07_containers.sh"
   do
     if [[ -f "$module" ]]; then
@@ -102,4 +102,7 @@ fi
 
 echo ""
 info "Next step — apply dotfiles:"
-info "  chezmoi init --apply git@github.com:nonatorw/chezmoi-dotfiles.git"
+info "  git clone https://github.com/nonatorw/chezmoi-dotfiles.git ~/Dev/repos/chezmoi-dotfiles"
+info "  mkdir -p ~/.config/chezmoi"
+info "  echo 'sourceDir = \"~/Dev/repos/chezmoi-dotfiles\"' > ~/.config/chezmoi/chezmoi.toml"
+info "  chezmoi apply"

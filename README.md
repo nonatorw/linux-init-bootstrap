@@ -20,24 +20,33 @@ cd ~/Dev/repos/linux-init-bootstrap
 bash bootstrap.sh
 ```
 
-Then apply dotfiles:
+Then apply dotfiles — chezmoi is configured to use `~/Dev/repos/chezmoi-dotfiles` as its
+source directory (see [chezmoi-dotfiles](https://github.com/nonatorw/chezmoi-dotfiles)):
 
 ```bash
-chezmoi init --apply git@github.com:nonatorw/chezmoi-dotfiles.git
+# Clone to the expected location
+git clone https://github.com/nonatorw/chezmoi-dotfiles.git ~/Dev/repos/chezmoi-dotfiles
+
+# Configure chezmoi to use that path
+mkdir -p ~/.config/chezmoi
+echo 'sourceDir = "~/Dev/repos/chezmoi-dotfiles"' > ~/.config/chezmoi/chezmoi.toml
+
+# Apply dotfiles
+chezmoi apply
 ```
 
 ## What this installs
 
-| Module | What it installs |
-|--------|-----------------|
-| `00_packages.sh` | Base system packages (curl, git, zsh, socat, etc.) |
-| `01_shell.sh` | Oh My Zsh + Powerlevel10k + plugins |
-| `02_chezmoi.sh` | [chezmoi](https://www.chezmoi.io/) dotfile manager |
-| `03_python.sh` | pyenv + Python LTS + Poetry + uv |
-| `04_java.sh` | SDKman + Azul Zulu JDK 25 + Maven + Gradle |
-| `05_node.sh` | NVM + Node.js LTS |
-| `06_ai.sh` | Claude Code + Gemini CLI |
-| `07_containers.sh` | Podman + Podman Compose |
+| Module             | What it installs                                   |
+|--------------------|----------------------------------------------------|
+| `00_packages.sh`   | Base system packages (curl, git, zsh, socat, etc.) |
+| `01_shell.sh`      | Oh My Zsh + Powerlevel10k + plugins                |
+| `02_chezmoi.sh`    | [chezmoi](https://www.chezmoi.io/) dotfile manager |
+| `03_python.sh`     | pyenv + Python LTS + Poetry + uv                   |
+| `04_java.sh`       | SDKman + Azul Zulu JDK 25 + Maven + Gradle         |
+| `05_node.sh`       | NVM + Node.js LTS                                  |
+| `06_ai.sh`         | Claude Code + Gemini CLI                           |
+| `07_containers.sh` | Podman + Podman Compose                            |
 
 ## 1Password SSH Agent
 
