@@ -7,7 +7,7 @@ install_chezmoi() {
   step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
     "chezmoi" "dotfile manager"
 
-  # Garante ~/.local/bin no PATH da sessão atual (curl installers colocam binários aqui)
+  # Ensure ~/.local/bin is in the current session PATH (curl installers place binaries here)
   export PATH="$HOME/.local/bin:$PATH"
 
   if has chezmoi; then

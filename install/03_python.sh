@@ -3,22 +3,22 @@
 # 03_python.sh — pyenv + Python (latest stable 3.x) + Poetry
 # ============================================================
 
-# Captura valores originais do ambiente antes de forçar os paths padrão
-# (necessário para detectar instalações em locais não-padrão)
+# Capture original env values before overriding paths
+# (needed to detect and remove non-standard installations)
 _ORIG_PYENV_ROOT="${PYENV_ROOT:-}"
 _ORIG_POETRY_HOME="${POETRY_HOME:-}"
 
-# pyenv root deve ser chamado ANTES de sobrescrever PYENV_ROOT — se chamado
-# depois, apenas reflete a variável que já definimos (inútil para detecção).
-# Sem PYENV_ROOT definido, pyenv root deriva o path a partir da localização
-# do binário, cobrindo casos onde PYENV_ROOT não estava no ambiente.
+# pyenv root must be called BEFORE overwriting PYENV_ROOT — if called after,
+# it only reflects the variable we just set (useless for detection).
+# Without PYENV_ROOT set, pyenv root derives the path from the binary location,
+# covering cases where PYENV_ROOT was not in the environment.
 if command -v pyenv &>/dev/null; then
   _PYENV_REPORTED_ROOT="$(pyenv root 2>/dev/null || true)"
 else
   _PYENV_REPORTED_ROOT=""
 fi
 
-# Sempre usa o path padrão do script, ignorando variáveis de ambiente externas
+# Always use the paths defined by this script, ignoring external env vars
 PYENV_ROOT="$HOME/Dev/tools/python/pyenv"
 POETRY_HOME="$HOME/Dev/tools/python/poetry"
 
@@ -33,9 +33,9 @@ install_python() {
 }
 
 _install_pyenv() {
-  # Remove instalações em paths não-padrão antes de instalar
-  # Candidatos: path histórico padrão (~/.pyenv), env var original (_ORIG_PYENV_ROOT)
-  # e root reportado pelo binário antes de PYENV_ROOT ser sobrescrito (_PYENV_REPORTED_ROOT)
+  # Remove non-standard installations before installing.
+  # Candidates: historical default (~/.pyenv), original env var (_ORIG_PYENV_ROOT),
+  # and root reported by the binary before PYENV_ROOT was overwritten (_PYENV_REPORTED_ROOT)
   local candidates=("$HOME/.pyenv")
   [[ -n "$_ORIG_PYENV_ROOT" ]]      && candidates+=("$_ORIG_PYENV_ROOT")
   [[ -n "$_PYENV_REPORTED_ROOT" ]]  && candidates+=("$_PYENV_REPORTED_ROOT")
@@ -48,25 +48,46 @@ _install_pyenv() {
 
   if [[ -d "$PYENV_ROOT/.git" ]]; then
     skip "pyenv  ${DIM}($(pyenv --version 2>/dev/null || echo 'unknown'))${RESET}"
-    return 0
-  fi
-  step "Installing pyenv to ${DIM}$PYENV_ROOT${RESET}..."
-  rm -rf "$PYENV_ROOT"
-  GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
+  else
+    step "Installing pyenv to ${DIM}$PYENV_ROOT${RESET}..."
+    rm -rf "$PYENV_ROOT"
+    GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
 
-  step "  Compiling pyenv native extension..."
-  cd "$PYENV_ROOT" && src/configure && make -C src 2>/dev/null; cd - >/dev/null
-  ok "pyenv installed"
+    step "  Compiling pyenv native extension..."
+    cd "$PYENV_ROOT" && src/configure && make -C src 2>/dev/null; cd - >/dev/null
+    ok "pyenv installed"
+  fi
+
+  _install_pyenv_plugins
+}
+
+_install_pyenv_plugins() {
+  declare -A pyenv_plugins=(
+    ["pyenv-doctor"]="https://github.com/pyenv/pyenv-doctor"
+    ["pyenv-update"]="https://github.com/pyenv/pyenv-update"
+  )
+
+  for plugin in "${!pyenv_plugins[@]}"; do
+    local plugin_dir="$PYENV_ROOT/plugins/$plugin"
+    if [[ -d "$plugin_dir/.git" ]]; then
+      skip "  $plugin"
+    else
+      [[ -d "$plugin_dir" ]] && rm -rf "$plugin_dir"
+      step "  Installing $plugin..."
+      GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone "${pyenv_plugins[$plugin]}" "$plugin_dir"
+      ok "  $plugin"
+    fi
+  done
 }
 
 _install_python_version() {
-  # Exporta PYENV_ROOT explicitamente para que subprocessos (pyenv-install,
-  # python-build) herdem o path correto; sem export, usariam o default ~/.pyenv
+  # Export PYENV_ROOT explicitly so subprocesses (pyenv-install, python-build)
+  # inherit the correct path; without export they would default to ~/.pyenv
   export PYENV_ROOT
   export PATH="$PYENV_ROOT/bin:$PATH"
   eval "$(pyenv init - bash)"
 
-  # Encontra a versão mais recente estável 3.x
+  # Find the latest stable 3.x version
   local latest
   latest=$(pyenv install --list | grep -E "^\s+3\.[0-9]+\.[0-9]+$" | tail -1 | tr -d ' ')
 
@@ -83,7 +104,7 @@ _install_python_version() {
 }
 
 _install_poetry() {
-  # Remove instalações em paths não-padrão antes de instalar
+  # Remove non-standard installations before installing
   local candidates=("$HOME/.poetry" "$HOME/.local/share/pypoetry")
   [[ -n "$_ORIG_POETRY_HOME" ]] && candidates+=("$_ORIG_POETRY_HOME")
   for loc in "${candidates[@]}"; do
@@ -113,7 +134,7 @@ _install_uv() {
   fi
   step "Installing uv..."
   curl -LsSf https://astral.sh/uv/install.sh | sh
-  # Garante que o binário recém-instalado está no PATH da sessão
+  # Ensure the newly installed binary is in the session PATH
   export PATH="$HOME/.local/bin:$PATH"
   ok "$("$uv_bin" --version)"
 }

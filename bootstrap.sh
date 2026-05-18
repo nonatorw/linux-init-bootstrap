@@ -21,26 +21,36 @@ DIM='\033[2m'
 RESET='\033[0m'
 
 # ---------------------------------------------------------------------------
-# Funções de output — usadas por bootstrap.sh e por todos os módulos install/
+# Output helpers — used by bootstrap.sh and all install/ modules
 # ---------------------------------------------------------------------------
 
-# Cabeçalho de módulo com borda: step_header <n> <total> <Title> <"tool · tool · ...">
-# Exemplo: step_header 3 8 "Python" "pyenv · Python 3.x · Poetry · uv"
-step_header() {
-  local n="$1" total="$2" title="$3" tools="$4"
-  local label="  [${n}/${total}] ${title}"
-  local sub="  ${tools}"
-  # Largura fixa de 46 chars (interior da caixa)
-  local width=46
-  local border
-  border="$(printf '═%.0s' $(seq 1 $width))"
-  printf "\n${MAGENTA}╔${border}╗${RESET}\n"
-  printf "${MAGENTA}║${RESET}${BOLD}%-${width}s${RESET}${MAGENTA}║${RESET}\n" "$label"
-  printf "${MAGENTA}║${RESET}${DIM}%-${width}s${RESET}${MAGENTA}║${RESET}\n" "$sub"
-  printf "${MAGENTA}╚${border}╝${RESET}\n"
+# Main header (magenta): section_header "Title"
+# Matches the *===...===* pattern from RunUpdates/RunDevUpdates.
+section_header() {
+  local title="$1"
+  echo -e ""
+  echo -e "${MAGENTA}*===========================================================================*${RESET}"
+  echo -e "${MAGENTA}*  ${title}${RESET}"
+  echo -e "${MAGENTA}*===========================================================================*${RESET}"
 }
 
-info()    { echo -e "${CYAN}[bootstrap]${RESET} $*"; }
+# Sub-section (cyan): step_header N TOTAL "Title" "tool · tool"
+# Matches the *---...---* / *> [N/T] Title ---* pattern from RunDevUpdates/RunUpdates.
+# Total line width: 77 chars. Title line: "*> " (3) + label + " " (1) + dashes + "*" (1) = 77
+step_header() {
+  local n="$1" total="$2" title="$3" tools="$4"
+  local label="[${n}/${total}] ${title}"
+  local dash_count=$(( 72 - ${#label} ))
+  local dashes
+  [[ $dash_count -gt 0 ]] && dashes="$(printf '%0.s-' $(seq 1 $dash_count))" || dashes=""
+  echo -e ""
+  echo -e "${CYAN}*---------------------------------------------------------------------------*${RESET}"
+  echo -e "${CYAN}*> ${label} ${dashes}*${RESET}"
+  echo -e "${CYAN}*  ${DIM}${tools}${RESET}"
+  echo -e "${CYAN}*---------------------------------------------------------------------------*${RESET}"
+}
+
+info()    { echo -e "${CYAN}    ${RESET} $*"; }
 step()    { echo -e "  ${BLUE}→${RESET} $*"; }
 ok()      { echo -e "  ${GREEN}✓${RESET} $*"; }
 skip()    { echo -e "  ${GREEN}✓${RESET} ${DIM}already installed${RESET}  $*"; }
@@ -49,7 +59,7 @@ error()   { echo -e "  ${RED}✖${RESET} $*"; exit 1; }
 success() { echo -e "\n${GREEN}${BOLD}✔  $*${RESET}"; }
 
 # ------------------------------------------------------------
-# Carrega helpers
+# Load helpers
 # ------------------------------------------------------------
 source "$DOTFILES_DIR/lib/platform.sh"
 detect_platform
@@ -57,7 +67,7 @@ detect_platform
 info "Platform: $PLATFORM | Package manager: $PKG_MANAGER"
 
 # ------------------------------------------------------------
-# Instala módulos em ordem
+# Run install modules in order
 # ------------------------------------------------------------
 _run_install() {
   mkdir -p "$HOME/Dev/tools/python/pyenv"     \
@@ -69,7 +79,7 @@ _run_install() {
            "$HOME/Dev/tools/ai/gemini-config" \
            "$HOME/Dev/repos"
 
-  # ~/.ssh com permissões correctas — sem chaves locais, tudo via 1Password
+  # ~/.ssh with correct permissions — no local keys, everything via 1Password
   mkdir -p "$HOME/.ssh"
   chmod 700 "$HOME/.ssh"
 
@@ -102,10 +112,7 @@ _run_install() {
 # ------------------------------------------------------------
 # Entry point
 # ------------------------------------------------------------
-echo ""
-echo -e "${MAGENTA}${BOLD}╔══════════════════════════════════════════════╗${RESET}"
-echo -e "${MAGENTA}${BOLD}║       linux-init-bootstrap — setup           ║${RESET}"
-echo -e "${MAGENTA}${BOLD}╚══════════════════════════════════════════════╝${RESET}"
+section_header "linux-init-bootstrap — setup"
 echo -e "  ${DIM}Platform: ${PLATFORM}  |  Package manager: ${PKG_MANAGER}${RESET}"
 
 _run_install
@@ -113,11 +120,10 @@ _run_install
 success "Tools installed."
 
 # ------------------------------------------------------------
-# WSL2: verificar pré-requisito do 1Password SSH agent
+# WSL2: check 1Password SSH agent prerequisite
 # ------------------------------------------------------------
 if [[ "$PLATFORM" == "wsl2" ]]; then
-  echo ""
-  echo -e "${MAGENTA}${BOLD}  1Password SSH Agent (WSL2)${RESET}"
+  section_header "1Password SSH Agent (WSL2)"
   _NPIPERELAY_PATH="/mnt/c/Users/${USER}/AppData/Local/Microsoft/WinGet/Links/npiperelay.exe"
   if [[ ! -x "$_NPIPERELAY_PATH" ]]; then
     _NPIPERELAY_PATH="$(find /mnt/c/Users/*/AppData/Local/Microsoft/WinGet/Links/npiperelay.exe 2>/dev/null | head -1)"
@@ -135,7 +141,7 @@ if [[ "$PLATFORM" == "wsl2" ]]; then
 fi
 
 # ------------------------------------------------------------
-# SSH known_hosts — fingerprints obtidas em tempo de execução
+# SSH known_hosts — host keys fetched at runtime via ssh-keyscan
 # ------------------------------------------------------------
 _setup_ssh_known_hosts() {
   local hosts=("github.com" "gitlab.com" "bitbucket.org")
@@ -157,7 +163,7 @@ _setup_ssh_known_hosts() {
 }
 
 # ------------------------------------------------------------
-# Dotfiles via chezmoi
+# Apply dotfiles via chezmoi
 # ------------------------------------------------------------
 _apply_dotfiles() {
   # Clone uses HTTPS (no auth required for public repo) because the SSH agent
@@ -170,12 +176,8 @@ _apply_dotfiles() {
   local chezmoi_bin
   chezmoi_bin="$(command -v chezmoi 2>/dev/null || echo "$HOME/.local/bin/chezmoi")"
 
-  echo ""
-  echo -e "${MAGENTA}${BOLD}╔══════════════════════════════════════════════╗${RESET}"
-  echo -e "${MAGENTA}${BOLD}║  Dotfiles                                    ║${RESET}"
-  echo -e "${MAGENTA}${BOLD}╚══════════════════════════════════════════════╝${RESET}"
+  section_header "Dotfiles"
 
-  # Clona o repo se ainda não existe
   if [[ -d "$dest/.git" ]]; then
     skip "chezmoi-dotfiles  ${DIM}($dest)${RESET}"
   else
@@ -184,7 +186,6 @@ _apply_dotfiles() {
     ok "chezmoi-dotfiles cloned"
   fi
 
-  # Configura o sourceDir
   mkdir -p "$HOME/.config/chezmoi"
   local toml="$HOME/.config/chezmoi/chezmoi.toml"
   if [[ ! -f "$toml" ]]; then
@@ -194,7 +195,6 @@ _apply_dotfiles() {
     skip "chezmoi.toml  ${DIM}($(cat "$toml"))${RESET}"
   fi
 
-  # Aplica os dotfiles
   step "Applying dotfiles..."
   "$chezmoi_bin" apply --force
   ok "Dotfiles applied"

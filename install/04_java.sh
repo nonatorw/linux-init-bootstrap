@@ -3,10 +3,10 @@
 # 04_java.sh — SDKman + Java LTS (Zulu 25.0.3.fx) + Maven + Gradle
 # ============================================================
 
-# Captura valores originais do ambiente antes de forçar os paths padrão
+# Capture original env values before overriding paths
 _ORIG_SDKMAN_DIR="${SDKMAN_DIR:-}"
 
-# Sempre usa os paths padrão do script, ignorando variáveis de ambiente externas
+# Always use the paths defined by this script, ignoring external env vars
 SDKMAN_DIR="$HOME/Dev/tools/java/sdkman"
 GRADLE_USER_HOME="$HOME/Dev/tools/java/gradle"
 MAVEN_LOCAL_REPO="$HOME/Dev/tools/java/m2"
@@ -17,8 +17,8 @@ install_java() {
 
   _install_sdkman
 
-  # sdk e seus scripts internos usam parâmetros opcionais ($3, etc.) que ficam
-  # unbound no bash com set -u; desliga temporariamente para todas as chamadas sdk
+  # sdk and its internal scripts use optional positional parameters ($3, etc.)
+  # that become unbound in bash with set -u; disable temporarily for all sdk calls
   set +u
   _install_java_lts
   _install_maven
@@ -29,12 +29,12 @@ install_java() {
 }
 
 _install_sdkman() {
-  # Remove instalações em paths não-padrão antes de instalar
-  # sdk é uma shell function — não há subcomando de root. O mecanismo oficial é a
-  # env var $SDKMAN_DIR, que é definida automaticamente ao fazer source do sdkman-init.sh.
-  # Quando o bootstrap é iniciado de uma sessão com sdkman carregado (via .zshrc),
-  # $SDKMAN_DIR já estará no ambiente — capturado em $_ORIG_SDKMAN_DIR.
-  # Complementado pelo path padrão histórico (~/.sdkman).
+  # Remove non-standard installations before installing.
+  # sdk is a shell function — there is no root subcommand. The official mechanism is
+  # the $SDKMAN_DIR env var, set automatically when sourcing sdkman-init.sh.
+  # If bootstrap runs from a session with sdkman already loaded (via .zshrc),
+  # $SDKMAN_DIR will already be in the environment — captured in $_ORIG_SDKMAN_DIR.
+  # Historical default path (~/.sdkman) is also checked.
   local candidates=("$HOME/.sdkman")
   [[ -n "$_ORIG_SDKMAN_DIR" ]] && candidates+=("$_ORIG_SDKMAN_DIR")
   for loc in "${candidates[@]}"; do
@@ -48,16 +48,16 @@ _install_sdkman() {
     skip "SDKman"
   else
     step "Installing SDKman to ${DIM}$SDKMAN_DIR${RESET}..."
-    # Remove diretório vazio para evitar detecção falsa pelo installer
+    # Remove empty directory to prevent false detection by the installer
     [[ -d "$SDKMAN_DIR" && -z "$(ls -A "$SDKMAN_DIR")" ]] && rm -rf "$SDKMAN_DIR"
     export SDKMAN_DIR
     curl -s "https://get.sdkman.io" | bash
     ok "SDKman installed"
   fi
 
-  # Carrega SDKman na sessão atual
-  # sdkman-init.sh usa variáveis opcionais (ZSH_VERSION, etc.) que podem estar unbound
-  # no bash; desliga -u temporariamente para evitar falha
+  # Load SDKman into the current session.
+  # sdkman-init.sh uses optional variables (ZSH_VERSION, etc.) that may be unbound
+  # in bash; disable -u temporarily to avoid failure
   # shellcheck source=/dev/null
   set +u
   source "$SDKMAN_DIR/bin/sdkman-init.sh"
@@ -97,13 +97,13 @@ _install_gradle() {
 _configure_gradle() {
   step "Configuring GRADLE_USER_HOME → ${DIM}$GRADLE_USER_HOME${RESET}"
   mkdir -p "$GRADLE_USER_HOME"
-  # GRADLE_USER_HOME é exportado via dev_configs.sh — nada mais necessário
+  # GRADLE_USER_HOME is exported via dev_configs.sh — nothing else needed here
 }
 
 _configure_maven() {
   step "Configuring Maven local repository → ${DIM}$MAVEN_LOCAL_REPO${RESET}"
   mkdir -p "$MAVEN_LOCAL_REPO"
   mkdir -p "$HOME/.m2"
-  # settings.xml é linkado pelo chezmoi-dotfiles via chezmoi apply
-  # MAVEN_OPTS com -Dmaven.repo.local é exportado via dev_configs.sh
+  # settings.xml is deployed by chezmoi-dotfiles via chezmoi apply
+  # MAVEN_OPTS with -Dmaven.repo.local is exported via dev_configs.sh
 }

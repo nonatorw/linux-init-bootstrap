@@ -42,7 +42,7 @@ _install_gemini_cli() {
   mkdir -p "$GEMINI_HOME"
   npm install --prefix "$GEMINI_HOME" @google/gemini-cli
 
-  # Gemini não cria bin/ no prefix — cria symlink para manter estrutura consistente
+  # Gemini does not create bin/ under the prefix — create symlink to keep consistent structure
   mkdir -p "$GEMINI_HOME/bin"
   ln -sf "../node_modules/.bin/gemini" "$GEMINI_HOME/bin/gemini"
   ok "Gemini CLI installed"

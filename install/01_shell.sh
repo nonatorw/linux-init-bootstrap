@@ -16,12 +16,12 @@ install_shell() {
 }
 
 _install_omz() {
-  # Verifica o arquivo principal — -d sozinho não garante install completo
+  # Check the main file — -d alone does not guarantee a complete install
   if [[ -f "$OMZ_DIR/oh-my-zsh.sh" ]]; then
     skip "Oh My Zsh"
     return 0
   fi
-  # Remove diretório parcial se existir
+  # Remove partial directory if it exists
   [[ -d "$OMZ_DIR" ]] && rm -rf "$OMZ_DIR"
   step "Installing Oh My Zsh..."
   # RUNZSH=no evita que o installer troque o shell interativamente
@@ -55,7 +55,7 @@ _install_zsh_plugins() {
     ["zsh-z"]="https://github.com/agkozak/zsh-z"
   )
 
-  # Mapeamento do arquivo principal de cada plugin para verificação de integridade
+  # Main file per plugin — used for integrity checking
   declare -A plugin_main=(
     ["zsh-autosuggestions"]="zsh-autosuggestions.plugin.zsh"
     ["zsh-syntax-highlighting"]="zsh-syntax-highlighting.plugin.zsh"

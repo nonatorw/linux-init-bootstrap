@@ -19,7 +19,7 @@ install_containers() {
       ok "$(podman --version)"
       ;;
     silverblue)
-      # Podman já faz parte da imagem base do Silverblue
+      # Podman is already part of the Silverblue base image
       warn "On Silverblue, Podman is part of the base image."
       warn "If missing: ${DIM}rpm-ostree install podman && systemctl reboot${RESET}"
       ;;

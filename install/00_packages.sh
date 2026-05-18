@@ -84,7 +84,7 @@ install_packages() {
   fi
   ok "Base packages installed"
 
-  # Locale: garante en_US.UTF-8 gerado — necessário para o .zshrc que exporta LC_ALL=en_US.UTF-8
+  # Locale: ensure en_US.UTF-8 is generated — required by .zshrc which exports LC_ALL=en_US.UTF-8
   if [[ "$PKG_MANAGER" == "apt" ]]; then
     if locale -a 2>/dev/null | grep -q "en_US.utf8"; then
       skip "locale en_US.UTF-8"
@@ -96,9 +96,9 @@ install_packages() {
     fi
   fi
 
-  # zsh: instala e define como shell padrão apenas se necessário
-  # Compara pelo nome do binário — evita falso negativo quando $SHELL e
-  # command -v zsh apontam para paths distintos do mesmo executável
+  # zsh: install and set as default shell only if needed.
+  # Compare by binary name — avoids false negative when $SHELL and
+  # command -v zsh point to different paths for the same executable.
   local zsh_path
   zsh_path="$(command -v zsh 2>/dev/null || true)"
 
