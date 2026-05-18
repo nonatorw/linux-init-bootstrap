@@ -4,29 +4,29 @@
 # ============================================================
 
 install_containers() {
-  echo "[containers] Configuring container runtime..."
+  step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
+    "Containers" "Podman"
 
   if has podman; then
-    echo "[containers] Podman already installed: $(podman --version)"
+    skip "$(podman --version)"
     return 0
   fi
 
-  echo "[containers] Installing Podman..."
+  step "Installing Podman ${DIM}(platform: $PLATFORM)${RESET}..."
   case "$PLATFORM" in
-    wsl2)
+    wsl2|linux)
       pkg_install podman
+      ok "$(podman --version)"
       ;;
     silverblue)
       # Podman já faz parte da imagem base do Silverblue
-      echo "[containers] On Silverblue, Podman is part of the base image."
-      echo "[containers] If missing, run: rpm-ostree install podman && systemctl reboot"
+      warn "On Silverblue, Podman is part of the base image."
+      warn "If missing: ${DIM}rpm-ostree install podman && systemctl reboot${RESET}"
       ;;
     macos)
       brew install podman
-      echo "[containers] Run 'podman machine init && podman machine start' to initialize"
-      ;;
-    linux)
-      pkg_install podman
+      ok "$(podman --version)"
+      step "Run ${DIM}podman machine init && podman machine start${RESET} to initialize the VM"
       ;;
   esac
 }

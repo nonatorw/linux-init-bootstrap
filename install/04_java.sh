@@ -12,7 +12,9 @@ GRADLE_USER_HOME="$HOME/Dev/tools/java/gradle"
 MAVEN_LOCAL_REPO="$HOME/Dev/tools/java/m2"
 
 install_java() {
-  echo "[java] Configuring Java environment..."
+  step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
+    "Java" "SDKman · Zulu JDK 25 · Maven · Gradle"
+
   _install_sdkman
 
   # sdk e seus scripts internos usam parâmetros opcionais ($3, etc.) que ficam
@@ -37,19 +39,20 @@ _install_sdkman() {
   [[ -n "$_ORIG_SDKMAN_DIR" ]] && candidates+=("$_ORIG_SDKMAN_DIR")
   for loc in "${candidates[@]}"; do
     [[ "$loc" != "$SDKMAN_DIR" && -d "$loc" ]] && {
-      echo "[java] Removing SDKman from non-standard location: $loc..."
+      step "Removing SDKman from non-standard location: $loc..."
       rm -rf "$loc"
     }
   done
 
   if [[ -f "$SDKMAN_DIR/bin/sdkman-init.sh" ]]; then
-    echo "[java] SDKman already installed — skipping"
+    skip "SDKman"
   else
-    echo "[java] Installing SDKman to $SDKMAN_DIR..."
+    step "Installing SDKman to ${DIM}$SDKMAN_DIR${RESET}..."
     # Remove diretório vazio para evitar detecção falsa pelo installer
     [[ -d "$SDKMAN_DIR" && -z "$(ls -A "$SDKMAN_DIR")" ]] && rm -rf "$SDKMAN_DIR"
     export SDKMAN_DIR
     curl -s "https://get.sdkman.io" | bash
+    ok "SDKman installed"
   fi
 
   # Carrega SDKman na sessão atual
@@ -63,41 +66,44 @@ _install_sdkman() {
 
 _install_java_lts() {
   if [[ -d "$SDKMAN_DIR/candidates/java/current" ]]; then
-    echo "[java] Java LTS already installed — skipping"
+    skip "Java  ${DIM}($(java --version 2>/dev/null | head -1 || echo 'Zulu 25'))${RESET}"
     return 0
   fi
-  echo "[java] Installing Java LTS (Zulu 25.0.3.fx via SDKman)..."
+  step "Installing Java LTS ${DIM}(Zulu 25.0.3.fx via SDKman)${RESET}..."
   sdk install java 25.0.3.fx-zulu
+  ok "Java $(java --version 2>/dev/null | head -1)"
 }
 
 _install_maven() {
   if [[ -d "$SDKMAN_DIR/candidates/maven/current" ]]; then
-    echo "[java] Maven already installed — skipping"
+    skip "Maven  ${DIM}($(mvn --version 2>/dev/null | head -1 || echo 'installed'))${RESET}"
     return 0
   fi
-  echo "[java] Installing Maven..."
+  step "Installing Maven..."
   sdk install maven
+  ok "Maven $(mvn --version 2>/dev/null | head -1)"
 }
 
 _install_gradle() {
   if [[ -d "$SDKMAN_DIR/candidates/gradle/current" ]]; then
-    echo "[java] Gradle already installed — skipping"
+    skip "Gradle  ${DIM}($(gradle --version 2>/dev/null | grep '^Gradle' || echo 'installed'))${RESET}"
     return 0
   fi
-  echo "[java] Installing Gradle..."
+  step "Installing Gradle..."
   sdk install gradle
+  ok "Gradle $(gradle --version 2>/dev/null | grep '^Gradle' || echo 'installed')"
 }
 
 _configure_gradle() {
-  echo "[java] Configuring GRADLE_USER_HOME → $GRADLE_USER_HOME"
+  step "Configuring GRADLE_USER_HOME → ${DIM}$GRADLE_USER_HOME${RESET}"
   mkdir -p "$GRADLE_USER_HOME"
   # GRADLE_USER_HOME é exportado via dev_configs.sh — nada mais necessário
 }
 
 _configure_maven() {
-  echo "[java] Configuring Maven local repository → $MAVEN_LOCAL_REPO"
+  step "Configuring Maven local repository → ${DIM}$MAVEN_LOCAL_REPO${RESET}"
   mkdir -p "$MAVEN_LOCAL_REPO"
   mkdir -p "$HOME/.m2"
-  # settings.xml é linkado pelo link.sh a partir do dotfiles repo
+  # settings.xml é linkado pelo chezmoi-dotfiles via chezmoi apply
   # MAVEN_OPTS com -Dmaven.repo.local é exportado via dev_configs.sh
 }

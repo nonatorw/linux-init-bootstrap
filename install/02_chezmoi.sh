@@ -4,11 +4,17 @@
 # ============================================================
 
 install_chezmoi() {
+  step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
+    "chezmoi" "dotfile manager"
+
+  # Garante ~/.local/bin no PATH da sessão atual (curl installers colocam binários aqui)
+  export PATH="$HOME/.local/bin:$PATH"
+
   if has chezmoi; then
-    echo "[chezmoi] chezmoi already installed: $(chezmoi --version)"
+    skip "$(chezmoi --version)"
     return 0
   fi
-  echo "[chezmoi] Installing chezmoi..."
+  step "Installing chezmoi to ~/.local/bin..."
   sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME/.local/bin"
-  echo "[chezmoi] chezmoi: $(chezmoi --version)"
+  ok "$(chezmoi --version)"
 }

@@ -7,7 +7,8 @@ OMZ_DIR="$HOME/.oh-my-zsh"
 OMZ_CUSTOM="${ZSH_CUSTOM:-$OMZ_DIR/custom}"
 
 install_shell() {
-  echo "[shell] Configuring shell environment..."
+  step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
+    "Shell" "Oh My Zsh · Powerlevel10k · plugins"
 
   _install_omz
   _install_p10k
@@ -15,28 +16,35 @@ install_shell() {
 }
 
 _install_omz() {
-  if [[ -d "$OMZ_DIR" ]]; then
-    echo "[shell] Oh My Zsh already installed — skipping"
+  # Verifica o arquivo principal — -d sozinho não garante install completo
+  if [[ -f "$OMZ_DIR/oh-my-zsh.sh" ]]; then
+    skip "Oh My Zsh"
     return 0
   fi
-  echo "[shell] Installing Oh My Zsh..."
+  # Remove diretório parcial se existir
+  [[ -d "$OMZ_DIR" ]] && rm -rf "$OMZ_DIR"
+  step "Installing Oh My Zsh..."
   # RUNZSH=no evita que o installer troque o shell interativamente
   RUNZSH=no CHSH=no \
     sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+  ok "Oh My Zsh installed"
 }
 
 _install_p10k() {
   local p10k_dir="$OMZ_CUSTOM/themes/powerlevel10k"
-  if [[ -d "$p10k_dir" ]]; then
-    echo "[shell] Powerlevel10k already installed — skipping"
+  # Verifica o arquivo principal do tema
+  if [[ -f "$p10k_dir/powerlevel10k.zsh-theme" ]]; then
+    skip "Powerlevel10k"
     return 0
   fi
-  echo "[shell] Installing Powerlevel10k..."
+  [[ -d "$p10k_dir" ]] && rm -rf "$p10k_dir"
+  step "Installing Powerlevel10k theme..."
   GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$p10k_dir"
+  ok "Powerlevel10k installed"
 }
 
 _install_zsh_plugins() {
-  echo "[shell] Installing zsh plugins..."
+  step "Installing zsh plugins..."
 
   declare -A plugins=(
     ["zsh-autosuggestions"]="https://github.com/zsh-users/zsh-autosuggestions"
@@ -47,13 +55,26 @@ _install_zsh_plugins() {
     ["zsh-z"]="https://github.com/agkozak/zsh-z"
   )
 
+  # Mapeamento do arquivo principal de cada plugin para verificação de integridade
+  declare -A plugin_main=(
+    ["zsh-autosuggestions"]="zsh-autosuggestions.plugin.zsh"
+    ["zsh-syntax-highlighting"]="zsh-syntax-highlighting.plugin.zsh"
+    ["zsh-history-substring-search"]="zsh-history-substring-search.plugin.zsh"
+    ["zsh-completions"]="zsh-completions.plugin.zsh"
+    ["zsh-bat"]="zsh-bat.plugin.zsh"
+    ["zsh-z"]="zsh-z.plugin.zsh"
+  )
+
   for plugin in "${!plugins[@]}"; do
     local plugin_dir="$OMZ_CUSTOM/plugins/$plugin"
-    if [[ -d "$plugin_dir" ]]; then
-      echo "[shell] $plugin already installed — skipping"
+    local main_file="${plugin_main[$plugin]}"
+    if [[ -f "$plugin_dir/$main_file" ]]; then
+      skip "$plugin"
     else
-      echo "[shell] Installing $plugin..."
+      [[ -d "$plugin_dir" ]] && rm -rf "$plugin_dir"
+      step "  Installing $plugin..."
       GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone --depth=1 "${plugins[$plugin]}" "$plugin_dir"
+      ok "  $plugin"
     fi
   done
 }
