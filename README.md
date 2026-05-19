@@ -5,6 +5,7 @@ Installs development tools, populates SSH known_hosts, clones
 [chezmoi-dotfiles](https://github.com/nonatorw/chezmoi-dotfiles), and applies dotfiles —
 all in a single command.
 
+
 > ## ATTENTION
 > **Pending verification:** The `setup-python`, `setup-dotfiles`, and `setup-ai` recipes in
 > `bluefin-template` have been updated but not yet tested on a live Bluefin machine. See
@@ -44,23 +45,22 @@ After the modules run, the bootstrap also:
 
 ## SSH agent bootstrap order
 
-The 1Password SSH agent relay (`socat` + `npiperelay`) is **not** active during the
-bootstrap itself — it starts automatically via `dev_configs.sh` when a new terminal session
-opens. This is why:
+The SSH agent is **not** active during the bootstrap itself — it becomes available after
+the first terminal restart. This is why:
 
 - `chezmoi-dotfiles` is cloned via **HTTPS**, not SSH
 - SSH host keys are pre-populated via `ssh-keyscan` (TCP only, no auth) so that `git push`
-  works immediately after reopening the terminal with the relay active
+  works immediately after reopening the terminal
 
 ```text
 bootstrap runs
-  └── install modules (socat installed here)
+  └── install modules
   └── ssh-keyscan github.com → ~/.ssh/known_hosts    (TCP only, no auth)
   └── git clone chezmoi-dotfiles via HTTPS           (no auth)
   └── chezmoi apply                                  (local files only)
 
 restart terminal
-  └── dev_configs.sh starts socat relay
+  └── aliases.sh activates ssh.exe / ssh-add.exe (WSL2)
   └── SSH agent active → git push works
 ```
 
@@ -75,44 +75,36 @@ needed after installing the [1Password desktop app](https://1password.com/downlo
 
 ### WSL2
 
-The 1Password Desktop app runs on Windows and exposes the SSH agent as a Windows named
-pipe. WSL2 cannot access named pipes directly — a relay is needed.
+On WSL2, `aliases.sh` (deployed by chezmoi) aliases `ssh`, `ssh-add`, and `op` to their
+Windows counterparts (`ssh.exe`, `ssh-add.exe`, `op.exe`). This makes the terminal use the
+Windows OpenSSH client, which communicates directly with the 1Password Desktop agent via
+the Windows named pipe — no relay process needed.
 
-#### Prerequisites (Windows — one-time manual steps)
+#### Prerequisites (Windows — one-time manual steps before running bootstrap)
 
-1. Install [1Password Desktop](https://1password.com/downloads/) (version 8.10+)
-2. In 1Password → Settings → Developer:
+1. Install [1Password Desktop](https://1password.com/downloads/) and sign in
+2. In 1Password → **Settings → Developer**:
    - Enable **"Use the SSH agent"**
    - Enable **"Integrate with 1Password CLI"**
-3. Install `npiperelay` via winget (PowerShell):
+3. Enable the Windows OpenSSH agent service (PowerShell **as Administrator**):
 
 ```powershell
-winget install jstarks.npiperelay
+Set-Service ssh-agent -StartupType Automatic
+Start-Service ssh-agent
 ```
 
-#### How the relay works (automatic after bootstrap)
-
-After the bootstrap and a terminal restart, `dev_configs.sh` automatically starts the
-relay on every session:
-
-```bash
-# Simplified version of what dev_configs.sh does:
-export SSH_AUTH_SOCK="$HOME/.ssh/1password-agent.sock"
-setsid socat UNIX-LISTEN:"$SSH_AUTH_SOCK",fork \
-  EXEC:"npiperelay.exe -ei -s //./pipe/openssh-ssh-agent",nofork &
-```
-
-This bridges the 1Password named pipe (`//./pipe/openssh-ssh-agent`) to a Unix socket
-that SSH and git can use.
+4. Store your SSH key as a native **SSH Key** item in 1Password (New Item → SSH Key →
+   import private key file). The key must be of this type — not a generic password item —
+   for the agent integration to work.
 
 #### Verifying it works
+
+Open a new WSL terminal after the bootstrap completes, then:
 
 ```bash
 ssh-add -l              # should list your 1Password SSH key
 ssh -T git@github.com   # should say "Hi <user>! You've successfully authenticated"
 ```
-
-The bootstrap warns if `npiperelay.exe` is not found during installation.
 
 ## Key design decisions
 
