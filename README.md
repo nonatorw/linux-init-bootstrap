@@ -5,13 +5,42 @@ Installs development tools, populates SSH known_hosts, clones
 [chezmoi-dotfiles](https://github.com/nonatorw/chezmoi-dotfiles), and applies dotfiles —
 all in a single command.
 
+## Overview
 
-> ## ATTENTION
-> **Pending verification:** The `setup-python`, `setup-dotfiles`, and `setup-ai` recipes in
-> `bluefin-template` have been updated but not yet tested on a live Bluefin machine. See
-> [nonatorw/chezmoi-dotfiles](https://github.com/nonatorw/chezmoi-dotfiles) and [nonatorw/bluefin-template](https://github.com/nonatorw/bluefin-template) docs for further details.
+The bootstrap is split into three phases. On a fresh WSL2 machine, run them in order.
+On a native Linux machine, only Phase 3 is needed.
 
-## Usage
+```text
+Phase 1 (Windows — WSL2 only): Windows prerequisites
+  setup-windows-admin.ps1   ← run once, elevated PowerShell
+  setup-windows.ps1         ← auto-invoked by bootstrap.sh
+
+Phase 2 (WSL — WSL2 only):  WSL-level prerequisites
+  setup-wsl.sh              ← run before bootstrap.sh
+
+Phase 3 (WSL / Linux):      Tool install + dotfiles
+  bootstrap.sh              ← main entry point
+```
+
+## Quick Start
+
+### WSL2
+
+```powershell
+# Windows: run once from elevated PowerShell
+Set-ExecutionPolicy Bypass -Scope Process -Force
+.\setup-windows-admin.ps1
+```
+
+```bash
+# WSL: clone repo and run all phases
+git clone https://github.com/nonatorw/linux-init-bootstrap.git ~/Dev/repos/linux-init-bootstrap
+cd ~/Dev/repos/linux-init-bootstrap
+bash setup-wsl.sh
+bash bootstrap.sh
+```
+
+### Native Linux
 
 ```bash
 git clone https://github.com/nonatorw/linux-init-bootstrap.git ~/Dev/repos/linux-init-bootstrap
@@ -19,21 +48,60 @@ cd ~/Dev/repos/linux-init-bootstrap
 bash bootstrap.sh
 ```
 
-That's it. The bootstrap runs all install modules, then automatically clones and applies
-`chezmoi-dotfiles`. Restart the terminal when it finishes.
+Restart the terminal when it finishes.
 
-## What this installs
+## Remote Entry Points (Gist)
 
-| Module             | What it installs                                                            |
-|--------------------|-----------------------------------------------------------------------------|
-| `00_packages.sh`   | System upgrade + base packages (curl, git, zsh, socat, etc.) + locale (apt) |
-| `01_shell.sh`      | Oh My Zsh + Powerlevel10k + plugins                                         |
-| `02_chezmoi.sh`    | [chezmoi](https://www.chezmoi.io/) dotfile manager                          |
-| `03_python.sh`     | pyenv + Python LTS + Poetry + uv                                            |
-| `04_java.sh`       | SDKman + Azul Zulu JDK 25 + Maven + Gradle                                  |
-| `05_node.sh`       | NVM + Node.js LTS                                                           |
-| `06_ai.sh`         | Claude Code + Gemini CLI                                                    |
-| `07_containers.sh` | Podman                                                                      |
+Each phase has a self-contained entry point in `gist/` that clones the repo and runs the
+appropriate script — useful for bootstrapping from a completely fresh machine.
+
+| Phase                 | Command                                              |
+|-----------------------|------------------------------------------------------|
+| Phase 1 (Windows)     | `irm <gist-url>/phase1-windows.ps1 \| iex`           |
+| Phase 2 (WSL prereqs) | `curl -fsSL <gist-url>/phase2-wsl.sh \| bash`        |
+| Phase 3 (bootstrap)   | `curl -fsSL <gist-url>/phase3-bootstrap.sh \| bash`  |
+
+> Upload the files in `gist/` to a GitHub Gist and replace `<gist-url>` with the raw URL.
+
+## Flags
+
+| Flag               | Description                                                         |
+|--------------------|---------------------------------------------------------------------|
+| `--clean-install`  | Remove all tools, dotfiles, and state, then reinstall from scratch  |
+
+```bash
+bash bootstrap.sh --clean-install
+```
+
+## Resume on Error
+
+The bootstrap writes progress to `~/.bootstrap-state` (key=value format). If a run is
+interrupted, re-running `bootstrap.sh` will skip modules that already completed.
+
+To reset a single module:
+
+```bash
+sed -i '/^module_03_python=/d' ~/.bootstrap-state
+```
+
+To reset everything:
+
+```bash
+bash bootstrap.sh --clean-install
+```
+
+## What Phase 3 Installs
+
+| Module             | What it installs                                                                    |
+|--------------------|-------------------------------------------------------------------------------------|
+| `00_packages.sh`   | System upgrade + base packages (curl, git, zsh, eza, bat, jq, etc.) + locale (apt) |
+| `01_shell.sh`      | Oh My Zsh + Powerlevel10k + plugins                                                 |
+| `02_chezmoi.sh`    | [chezmoi](https://www.chezmoi.io/) dotfile manager                                  |
+| `03_python.sh`     | pyenv + Python LTS + Poetry + uv                                                    |
+| `04_java.sh`       | SDKman + Azul Zulu JDK 25 + Maven + Gradle                                          |
+| `05_node.sh`       | NVM + Node.js LTS                                                                   |
+| `06_ai.sh`         | Claude Code + Gemini CLI                                                            |
+| `07_containers.sh` | Podman                                                                              |
 
 After the modules run, the bootstrap also:
 
@@ -43,7 +111,7 @@ After the modules run, the bootstrap also:
    `~/Dev/repos/chezmoi-dotfiles`.
 3. **Applies dotfiles** — runs `chezmoi apply --force`.
 
-## SSH agent bootstrap order
+## SSH Agent Bootstrap Order
 
 The SSH agent is **not** active during the bootstrap itself — it becomes available after
 the first terminal restart. This is why:
@@ -73,29 +141,29 @@ All git operations use SSH authenticated via 1Password. The setup differs by pla
 1Password exposes the SSH agent natively at `~/.1password/agent.sock`. No extra setup
 needed after installing the [1Password desktop app](https://1password.com/downloads/linux/).
 
-### WSL2
+### WSL2 (via Windows executables)
 
 On WSL2, `aliases.sh` (deployed by chezmoi) aliases `ssh`, `ssh-add`, and `op` to their
 Windows counterparts (`ssh.exe`, `ssh-add.exe`, `op.exe`). This makes the terminal use the
 Windows OpenSSH client, which communicates directly with the 1Password Desktop agent via
 the Windows named pipe — no relay process needed.
 
-#### Prerequisites (Windows — one-time manual steps before running bootstrap)
+#### Prerequisites (Windows — one-time manual steps)
+
+Run `setup-windows-admin.ps1` from an elevated PowerShell, then complete the manual steps:
 
 1. Install [1Password Desktop](https://1password.com/downloads/) and sign in
 2. In 1Password → **Settings → Developer**:
    - Enable **"Use the SSH agent"**
    - Enable **"Integrate with 1Password CLI"**
-3. Enable the Windows OpenSSH agent service (PowerShell **as Administrator**):
-
-```powershell
-Set-Service ssh-agent -StartupType Automatic
-Start-Service ssh-agent
-```
-
-4. Store your SSH key as a native **SSH Key** item in 1Password (New Item → SSH Key →
+3. Store your SSH key as a native **SSH Key** item in 1Password (New Item → SSH Key →
    import private key file). The key must be of this type — not a generic password item —
    for the agent integration to work.
+
+The `setup-windows-admin.ps1` script handles:
+
+- Installing the Windows OpenSSH client optional feature (provides `ssh.exe`)
+- Disabling the Windows `ssh-agent` service (1Password manages the agent pipe directly; the native service conflicts)
 
 #### Verifying it works
 
@@ -106,15 +174,20 @@ ssh-add -l              # should list your 1Password SSH key
 ssh -T git@github.com   # should say "Hi <user>! You've successfully authenticated"
 ```
 
-## Key design decisions
+## Key Design Decisions
 
-- **Single command** — tools, SSH known_hosts, and dotfiles are all handled by one run of
-  `bootstrap.sh`. No manual post-install steps.
+- **Three phases** — Windows prerequisites, WSL prerequisites, and tool install are separated
+  so each can be run and re-run independently.
+- **State tracking** — `~/.bootstrap-state` records each module's result so the bootstrap
+  can resume after failure without re-running completed steps.
+- **Single command for Phase 3** — tools, SSH known_hosts, and dotfiles are all handled by
+  one run of `bootstrap.sh`. No manual post-install steps.
 - **HTTPS for bootstrap clones** — all `git clone` calls during the bootstrap use HTTPS or
   `GIT_CONFIG_NOSYSTEM=1 HOME=/tmp` to avoid dependency on SSH signing or agent availability.
 - **SSH known_hosts at runtime** — host keys are fetched via `ssh-keyscan` during the
   bootstrap, never stored in this repo.
 - **Idempotent** — safe to run multiple times; each module skips already-installed tools and
   verifies installation integrity (not just directory existence).
-- **No modes** — no `--install`/`--link`/`--reinstall` flags. One command does everything.
+- **No modes** — no `--install`/`--link`/`--reinstall` flags beyond `--clean-install`.
+  One command does everything.
 - **Fixed Java version** — always installs Azul Zulu `25.0.3.fx-zulu` via SDKman.

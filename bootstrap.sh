@@ -1,14 +1,30 @@
 #!/usr/bin/env bash
 # ============================================================
-# bootstrap.sh — configura o ambiente de desenvolvimento
+# bootstrap.sh — Phase 3: development environment setup
 # ============================================================
+#
+# Usage:
+#   bash bootstrap.sh                  # install / resume from last state
+#   bash bootstrap.sh --clean-install  # wipe all tools + dotfiles, then reinstall
+#
+# On WSL2, automatically invokes setup-windows.ps1 first (non-admin Windows checks).
+# For admin Windows prerequisites, run setup-windows-admin.ps1 manually beforehand.
+# For WSL-level prerequisites, run setup-wsl.sh before this script.
 
 set -euo pipefail
 
-DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BOOTSTRAP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ---------------------------------------------------------------------------
-# Cores
+# Flag parsing
+# ---------------------------------------------------------------------------
+CLEAN_INSTALL=false
+for arg in "$@"; do
+  [[ "$arg" == "--clean-install" ]] && CLEAN_INSTALL=true
+done
+
+# ---------------------------------------------------------------------------
+# Colors
 # ---------------------------------------------------------------------------
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -24,8 +40,7 @@ RESET='\033[0m'
 # Output helpers — used by bootstrap.sh and all install/ modules
 # ---------------------------------------------------------------------------
 
-# Main header (magenta): section_header "Title"
-# Matches the *===...===* pattern from RunUpdates/RunDevUpdates.
+# Main header (magenta)
 section_header() {
   local title="$1"
   echo -e ""
@@ -35,8 +50,6 @@ section_header() {
 }
 
 # Sub-section (cyan): step_header N TOTAL "Title" "tool · tool"
-# Matches the *---...---* / *> [N/T] Title ---* pattern from RunDevUpdates/RunUpdates.
-# Total line width: 77 chars. Title line: "*> " (3) + label + " " (1) + dashes + "*" (1) = 77
 step_header() {
   local n="$1" total="$2" title="$3" tools="$4"
   local label="[${n}/${total}] ${title}"
@@ -58,17 +71,76 @@ warn()    { echo -e "  ${YELLOW}⚠${RESET} $*"; }
 error()   { echo -e "  ${RED}✖${RESET} $*"; exit 1; }
 success() { echo -e "\n${GREEN}${BOLD}✔  $*${RESET}"; }
 
-# ------------------------------------------------------------
-# Load helpers
-# ------------------------------------------------------------
-source "$DOTFILES_DIR/lib/platform.sh"
+# ---------------------------------------------------------------------------
+# Load platform detection and state helpers
+# ---------------------------------------------------------------------------
+source "$BOOTSTRAP_DIR/lib/platform.sh"
+source "$BOOTSTRAP_DIR/lib/state.sh"
 detect_platform
+state_init
 
-info "Platform: $PLATFORM | Package manager: $PKG_MANAGER"
+# ---------------------------------------------------------------------------
+# --clean-install: wipe all tools, dotfiles, and state before reinstalling
+# ---------------------------------------------------------------------------
+if [[ "$CLEAN_INSTALL" == "true" ]]; then
+  source "$BOOTSTRAP_DIR/lib/clean.sh"
+  _clean_install
+fi
 
-# ------------------------------------------------------------
-# Run install modules in order
-# ------------------------------------------------------------
+section_header "linux-init-bootstrap — Phase 3: tools"
+echo -e "  ${DIM}Platform: ${PLATFORM}  |  Package manager: ${PKG_MANAGER}${RESET}"
+
+# ---------------------------------------------------------------------------
+# Phase 1: Windows prerequisites (WSL2 only, non-admin, auto-invoked)
+# ---------------------------------------------------------------------------
+if [[ "$PLATFORM" == "wsl2" ]]; then
+  local_ps_script="$BOOTSTRAP_DIR/setup-windows.ps1"
+  if [[ -f "$local_ps_script" ]]; then
+    # Ensure state file exists with correct ownership before PowerShell writes to it
+    state_init
+    win_script="$(wslpath -w "$local_ps_script")"
+    win_state_file="$(wslpath -w "$STATE_FILE")"
+    powershell.exe -ExecutionPolicy Bypass \
+      -File "$win_script" -StateFile "$win_state_file" || \
+      warn "Windows prerequisites check had issues — see output above"
+  else
+    warn "setup-windows.ps1 not found — skipping Windows prerequisites check"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# Module runner with state integration
+# ---------------------------------------------------------------------------
+_run_module() {
+  local n="$1" total="$2" module="$3"
+  local key="module_$(basename "$module" .sh)"
+
+  if state_is "$key" "complete"; then
+    skip "$(basename "$module") — already complete"
+    return 0
+  fi
+
+  state_set "$key" "in_progress"
+  # shellcheck source=/dev/null
+  source "$module"
+  _BOOTSTRAP_STEP_N="$n"
+  _BOOTSTRAP_STEP_TOTAL="$total"
+  export _BOOTSTRAP_STEP_N _BOOTSTRAP_STEP_TOTAL
+
+  local fn_name
+  fn_name="$(basename "$module" .sh | sed 's/^[0-9]*_/install_/')"
+
+  if "$fn_name"; then
+    state_set "$key" "complete"
+  else
+    state_set "$key" "failed"
+    warn "Module $(basename "$module") reported an issue — continuing"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Phase 3: Install development tools
+# ---------------------------------------------------------------------------
 _run_install() {
   mkdir -p "$HOME/Dev/tools/python/pyenv"     \
            "$HOME/Dev/tools/python/poetry"    \
@@ -84,69 +156,31 @@ _run_install() {
   chmod 700 "$HOME/.ssh"
 
   local modules=(
-    "$DOTFILES_DIR/install/00_packages.sh"
-    "$DOTFILES_DIR/install/01_shell.sh"
-    "$DOTFILES_DIR/install/02_chezmoi.sh"
-    "$DOTFILES_DIR/install/03_python.sh"
-    "$DOTFILES_DIR/install/04_java.sh"
-    "$DOTFILES_DIR/install/05_node.sh"
-    "$DOTFILES_DIR/install/06_ai.sh"
-    "$DOTFILES_DIR/install/07_containers.sh"
+    "$BOOTSTRAP_DIR/install/00_packages.sh"
+    "$BOOTSTRAP_DIR/install/01_shell.sh"
+    "$BOOTSTRAP_DIR/install/02_chezmoi.sh"
+    "$BOOTSTRAP_DIR/install/03_python.sh"
+    "$BOOTSTRAP_DIR/install/04_java.sh"
+    "$BOOTSTRAP_DIR/install/05_node.sh"
+    "$BOOTSTRAP_DIR/install/06_ai.sh"
+    "$BOOTSTRAP_DIR/install/07_containers.sh"
   )
   local total="${#modules[@]}"
   local n=0
 
   for module in "${modules[@]}"; do
     (( n++ )) || true
-    if [[ -f "$module" ]]; then
-      source "$module"
-      _BOOTSTRAP_STEP_N="$n"
-      _BOOTSTRAP_STEP_TOTAL="$total"
-      export _BOOTSTRAP_STEP_N _BOOTSTRAP_STEP_TOTAL
-      "$(basename "$module" .sh | sed 's/^[0-9]*_/install_/')" || \
-        warn "Module $(basename "$module") reported an issue — continuing"
-    fi
+    [[ -f "$module" ]] && _run_module "$n" "$total" "$module"
   done
 }
 
-# ------------------------------------------------------------
-# Entry point
-# ------------------------------------------------------------
-section_header "linux-init-bootstrap — setup"
-echo -e "  ${DIM}Platform: ${PLATFORM}  |  Package manager: ${PKG_MANAGER}${RESET}"
-
 _run_install
-
+state_set "phase_tools" "complete"
 success "Tools installed."
 
-# ------------------------------------------------------------
-# WSL2: check 1Password SSH agent prerequisite
-# ------------------------------------------------------------
-if [[ "$PLATFORM" == "wsl2" ]]; then
-  section_header "1Password SSH Agent (WSL2)"
-  _NPIPERELAY_PATH=""
-  for _candidate in \
-    /mnt/c/Users/*/AppData/Local/Microsoft/WinGet/Links/npiperelay.exe \
-    "/mnt/c/Program Files/WinGet/Links/npiperelay.exe" \
-    "/mnt/c/Program Files (x86)/WinGet/Links/npiperelay.exe"; do
-    [[ -x "$_candidate" ]] && { _NPIPERELAY_PATH="$_candidate"; break; }
-  done
-  unset _candidate
-  if [[ -x "$_NPIPERELAY_PATH" ]]; then
-    ok "npiperelay found: ${DIM}${_NPIPERELAY_PATH}${RESET}"
-    step "SSH agent relay will start automatically via dev_configs.sh"
-  else
-    warn "npiperelay.exe not found — 1Password SSH agent will not work in WSL2"
-    warn "Install it on Windows: ${DIM}winget install jstarks.npiperelay${RESET}"
-    warn "Enable 'Use SSH agent' in 1Password → Settings → Developer"
-    warn "See README.md for full setup instructions"
-  fi
-  unset _NPIPERELAY_PATH
-fi
-
-# ------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # SSH known_hosts — host keys fetched at runtime via ssh-keyscan
-# ------------------------------------------------------------
+# ---------------------------------------------------------------------------
 _setup_ssh_known_hosts() {
   local hosts=("github.com" "gitlab.com" "bitbucket.org")
   local known="$HOME/.ssh/known_hosts"
@@ -166,15 +200,98 @@ _setup_ssh_known_hosts() {
   [[ $added -gt 0 ]] && chmod 600 "$known"
 }
 
-# ------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Resolve SSH signing key for chezmoi data
+# ---------------------------------------------------------------------------
+_resolve_signing_key() {
+  # All UI output goes to stderr — stdout is reserved for the key value only.
+
+  # 1. Already captured by setup-windows.ps1 or a previous run
+  local cached
+  cached="$(state_get "signing_key")"
+  if [[ -n "$cached" ]]; then
+    ok "signing_key loaded from state file" >&2
+    echo "$cached"
+    return 0
+  fi
+
+  # 2. Try to read from the SSH agent (1Password via ssh-add / ssh-add.exe)
+  local ssh_add_bin="ssh-add"
+  [[ "$PLATFORM" == "wsl2" ]] && ssh_add_bin="ssh-add.exe"
+
+  local -a keys=()
+  local key_count=0
+
+  while true; do
+    local raw
+    raw="$("$ssh_add_bin" -L 2>/dev/null)" || raw=""
+    mapfile -t keys < <(echo "$raw" | grep -E "^(sk-)?(ssh-|ecdsa-)" || true)
+    key_count="${#keys[@]}"
+
+    if [[ "$key_count" -gt 0 ]]; then
+      break
+    fi
+
+    warn "No SSH keys found in 1Password agent." >&2
+    echo "" >&2
+    info "Configure 1Password Desktop before continuing:" >&2
+    info "  1. Open 1Password → Settings → Developer" >&2
+    info "       - Enable 'Use the SSH agent'" >&2
+    info "       - Enable 'Integrate with 1Password CLI'" >&2
+    info "  2. Your SSH key must be a native SSH Key item" >&2
+    info "       (New Item → SSH Key → import private key file)" >&2
+    echo "" >&2
+    printf "  [R]etry / [C]ancel: " >&2
+    local choice
+    read -r choice
+    if [[ "$choice" =~ ^[Cc] ]]; then
+      warn "Cancelled by user — dotfiles not applied" >&2
+      warn "Re-run bootstrap after configuring 1Password SSH agent: bash bootstrap.sh" >&2
+      return 1
+    fi
+  done
+
+  local signing_key
+  if [[ "$key_count" -eq 1 ]]; then
+    signing_key="${keys[0]}"
+    ok "SSH signing key detected automatically" >&2
+  else
+    echo "" >&2
+    info "Multiple SSH keys found — select the signing key:" >&2
+    local i
+    for (( i=0; i<key_count; i++ )); do
+      printf "    [%d] %.70s...\n" $(( i+1 )) "${keys[$i]}" >&2
+    done
+    echo "" >&2
+    local sel
+    while true; do
+      printf "  Enter number (1-%d) or [C]ancel: " "$key_count" >&2
+      read -r sel
+      if [[ "$sel" =~ ^[Cc] ]]; then
+        warn "Cancelled by user — dotfiles not applied" >&2
+        warn "Re-run bootstrap after selecting a signing key: bash bootstrap.sh" >&2
+        return 1
+      fi
+      if [[ "$sel" =~ ^[0-9]+$ ]] && (( sel >= 1 && sel <= key_count )); then
+        signing_key="${keys[$(( sel-1 ))]}"
+        break
+      fi
+      warn "Invalid selection — enter a number between 1 and $key_count, or C to cancel" >&2
+    done
+    ok "SSH signing key selected" >&2
+  fi
+
+  state_set "signing_key" "$signing_key"
+  echo "$signing_key"
+}
+
+# ---------------------------------------------------------------------------
 # Apply dotfiles via chezmoi
-# ------------------------------------------------------------
+# ---------------------------------------------------------------------------
 _apply_dotfiles() {
   # Clone uses HTTPS (no auth required for public repo) because the SSH agent
-  # relay (socat + npiperelay) is not yet active at this point in the bootstrap.
-  # The relay starts automatically on the next terminal session via dev_configs.sh.
-  # SSH host keys are already populated by _setup_ssh_known_hosts above so that
-  # git push works immediately after reopening the terminal.
+  # is not yet active at this point in the bootstrap. It becomes available
+  # after the first terminal restart via the aliases defined in aliases.sh.
   local repo="https://github.com/nonatorw/chezmoi-dotfiles.git"
   local dest="$HOME/Dev/repos/chezmoi-dotfiles"
   local chezmoi_bin
@@ -194,16 +311,46 @@ _apply_dotfiles() {
     ok "chezmoi-dotfiles cloned"
   fi
 
-  mkdir -p "$HOME/.config/chezmoi"
   local toml="$HOME/.config/chezmoi/chezmoi.toml"
-  if [[ ! -f "$toml" ]]; then
-    printf 'sourceDir = "%s"\n' "$dest" > "$toml"
-    ok "chezmoi.toml created  ${DIM}(sourceDir = $dest)${RESET}"
-  else
-    skip "chezmoi.toml  ${DIM}($(cat "$toml"))${RESET}"
+  if [[ -f "$toml" ]]; then
+    # Validate that the toml is readable by chezmoi before skipping init
+    if "$chezmoi_bin" cat-config >/dev/null 2>&1; then
+      skip "chezmoi.toml already exists — skipping init"
+      step "Applying dotfiles..."
+      if ! "$chezmoi_bin" apply --force; then
+        warn "chezmoi apply failed — dotfiles may be partially applied"
+        warn "Run manually: $chezmoi_bin apply --force"
+        return 1
+      fi
+      ok "Dotfiles applied"
+      return 0
+    else
+      warn "chezmoi.toml exists but is invalid — regenerating"
+      rm -f "$toml"
+    fi
   fi
 
-  step "Applying dotfiles..."
+  # chezmoi.toml does not exist — resolve signing key, write toml, then apply
+  step "Resolving SSH signing key..."
+  local signing_key
+  if ! signing_key="$(_resolve_signing_key)"; then
+    warn "SSH signing key not resolved — dotfiles not applied"
+    warn "Fix 1Password SSH agent setup and re-run: bash bootstrap.sh"
+    return 1
+  fi
+
+  # Write chezmoi.toml with signingKey before init so promptStringOnce finds it
+  # and does not prompt the user interactively.
+  mkdir -p "$HOME/.config/chezmoi"
+  cat > "$toml" <<EOF
+sourceDir = "$dest"
+
+[data]
+  signingKey = "$signing_key"
+EOF
+  ok "chezmoi.toml created with signingKey"
+
+  step "Applying dotfiles (source: ${DIM}$dest${RESET})..."
   if ! "$chezmoi_bin" apply --force; then
     warn "chezmoi apply failed — dotfiles may be partially applied"
     warn "Run manually: $chezmoi_bin apply --force"
@@ -213,7 +360,8 @@ _apply_dotfiles() {
 }
 
 _setup_ssh_known_hosts || warn "SSH known_hosts setup had issues — continuing"
-_apply_dotfiles || warn "Dotfiles apply had issues — check warnings above"
+_apply_dotfiles        || warn "Dotfiles not applied — check warnings above and re-run: bash bootstrap.sh"
+state_set "phase_dotfiles" "complete"
 
 echo ""
 success "Bootstrap complete! Restart your terminal to apply all changes."

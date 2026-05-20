@@ -5,7 +5,7 @@
 
 install_packages() {
   step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
-    "Packages" "build-essential · zsh · eza · bat · jq · socat"
+    "Packages" "build-essential · zsh · eza · bat · jq"
 
   if [[ "$PKG_MANAGER" == "brew" ]]; then
     step "Ensuring Homebrew is available..."
@@ -36,8 +36,7 @@ install_packages() {
                 bat              \
                 jq               \
                 unzip            \
-                zip              \
-                socat
+                zip
   elif [[ "$PKG_MANAGER" == "dnf" ]]; then
     step "Upgrading system packages..."
     sudo dnf5 check-upgrade || true
@@ -67,8 +66,7 @@ install_packages() {
                 bat             \
                 jq              \
                 unzip           \
-                zip             \
-                socat
+                zip
   else
     step "Installing base tools via Homebrew..."
     pkg_install curl            \
@@ -82,8 +80,7 @@ install_packages() {
                 bat             \
                 jq              \
                 unzip           \
-                zip             \
-                socat
+                zip
   fi
   ok "Base packages installed"
 
@@ -105,7 +102,9 @@ install_packages() {
   local zsh_path
   zsh_path="$(command -v zsh 2>/dev/null || true)"
 
-  if [[ -n "$zsh_path" && "$(basename "$SHELL")" == "zsh" ]]; then
+  local current_shell
+  current_shell="$(getent passwd "$USER" | cut -d: -f7)"
+  if [[ -n "$zsh_path" && "$current_shell" == "$zsh_path" ]]; then
     skip "$(zsh --version)"
   else
     if [[ -z "$zsh_path" ]]; then
@@ -116,10 +115,18 @@ install_packages() {
     fi
     step "Setting zsh as default shell..."
     grep -qxF "$zsh_path" /etc/shells || echo "$zsh_path" | sudo tee -a /etc/shells
-    if chsh -s "$zsh_path"; then
-      ok "Default shell set to $zsh_path ${DIM}(restart terminal to apply)${RESET}"
-    else
-      warn "chsh failed — set default shell manually: chsh -s $zsh_path"
-    fi
+    while true; do
+      if chsh -s "$zsh_path"; then
+        ok "Default shell set to $zsh_path ${DIM}(restart terminal to apply)${RESET}"
+        break
+      fi
+      warn "chsh failed (wrong password or PAM error)"
+      printf "  [R]etry / [S]kip (set shell manually later): "
+      local choice
+      read -r choice
+      case "$choice" in
+        [Ss]) warn "Skipping — set default shell manually: chsh -s $zsh_path"; break ;;
+      esac
+    done
   fi
 }
