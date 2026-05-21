@@ -30,6 +30,8 @@ _install_claude_code() {
   step "Installing Claude Code to ${DIM}$CLAUDE_HOME${RESET}..."
   mkdir -p "$CLAUDE_HOME"
   npm install --prefix "$CLAUDE_HOME" @anthropic-ai/claude-code
+  mkdir -p "$CLAUDE_HOME/bin"
+  ln -sf "../node_modules/.bin/claude" "$CLAUDE_HOME/bin/claude"
   ok "Claude Code installed"
 }
 
@@ -56,3 +58,5 @@ _init_gemini_dir() {
   fi
   step "Gemini config dir: ${DIM}$gemini_config_dir${RESET}"
 }
+
+

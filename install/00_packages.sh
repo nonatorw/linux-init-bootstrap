@@ -5,7 +5,7 @@
 
 install_packages() {
   step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
-    "Packages" "build-essential · zsh · eza · bat · jq"
+    "Packages" "build-essential · zsh · eza · bat · jq · gh"
 
   if [[ "$PKG_MANAGER" == "brew" ]]; then
     step "Ensuring Homebrew is available..."
@@ -84,6 +84,8 @@ install_packages() {
   fi
   ok "Base packages installed"
 
+  _install_gh
+
   # Locale: ensure en_US.UTF-8 is generated — required by .zshrc which exports LC_ALL=en_US.UTF-8
   if [[ "$PKG_MANAGER" == "apt" ]]; then
     if locale -a 2>/dev/null | grep -q "en_US.utf8"; then
@@ -129,4 +131,39 @@ install_packages() {
       esac
     done
   fi
+}
+
+_install_gh() {
+  if has gh; then
+    skip "$(gh --version | head -1)"
+    return 0
+  fi
+
+  case "$PKG_MANAGER" in
+    apt)
+      step "Adding GitHub CLI apt repository..."
+      if [[ ! -f /etc/apt/sources.list.d/github-cli.list ]]; then
+        sudo mkdir -p /etc/apt/keyrings
+        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+          | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+        sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+          | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+        sudo apt update -y
+      fi
+      pkg_install gh
+      ;;
+    dnf)
+      step "Adding GitHub CLI dnf repository..."
+      if [[ ! -f /etc/yum.repos.d/gh-cli.repo ]]; then
+        sudo dnf install -y 'dnf-command(config-manager)'
+        sudo dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+      fi
+      pkg_install gh
+      ;;
+    brew)
+      pkg_install gh
+      ;;
+  esac
+  ok "$(gh --version | head -1)"
 }

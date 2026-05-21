@@ -92,16 +92,53 @@ bash bootstrap.sh --clean-install
 
 ## What Phase 3 Installs
 
-| Module             | What it installs                                                                    |
-|--------------------|-------------------------------------------------------------------------------------|
-| `00_packages.sh`   | System upgrade + base packages (curl, git, zsh, eza, bat, jq, etc.) + locale (apt) |
-| `01_shell.sh`      | Oh My Zsh + Powerlevel10k + plugins                                                 |
-| `02_chezmoi.sh`    | [chezmoi](https://www.chezmoi.io/) dotfile manager                                  |
-| `03_python.sh`     | pyenv + Python LTS + Poetry + uv                                                    |
-| `04_java.sh`       | SDKman + Azul Zulu JDK 25 + Maven + Gradle                                          |
-| `05_node.sh`       | NVM + Node.js LTS                                                                   |
-| `06_ai.sh`         | Claude Code + Gemini CLI                                                            |
-| `07_containers.sh` | Podman                                                                              |
+| Module             | What it installs                                                                        |
+|--------------------|-----------------------------------------------------------------------------------------|
+| `00_packages.sh`   | System upgrade + base packages (curl, git, zsh, eza, bat, jq, etc.) + locale (apt) + gh |
+| `01_shell.sh`      | Oh My Zsh + Powerlevel10k + plugins                                                     |
+| `02_chezmoi.sh`    | [chezmoi](https://www.chezmoi.io/) dotfile manager                                      |
+| `03_python.sh`     | pyenv + Python LTS + Poetry + uv                                                        |
+| `04_java.sh`       | SDKman + Azul Zulu JDK 25 + Maven + Gradle                                              |
+| `05_node.sh`       | NVM + Node.js LTS                                                                       |
+| `06_ai.sh`         | Claude Code + Gemini CLI (gh copilot requires manual post-install steps)                |
+| `07_containers.sh` | Podman                                                                                  |
+
+## Post-Install Manual Steps
+
+After the bootstrap completes, some tools require manual authentication before they are fully functional.
+
+### Claude Code
+
+Run `claude` and follow the onboarding steps — the CLI guides you through login interactively:
+
+```bash
+claude
+```
+
+### Gemini CLI
+
+Run `gemini` and follow the onboarding steps — the CLI guides you through login interactively:
+
+```bash
+gemini
+```
+
+### GitHub Copilot CLI
+
+The bootstrap installs `gh` (GitHub CLI) but the `gh copilot` extension must be installed and authenticated manually — authentication varies by account type (GitHub.com or GitHub Enterprise).
+
+```bash
+# Authenticate gh (choose GitHub.com or your enterprise host)
+gh auth login
+
+# Install the Copilot extension
+gh extension install github/gh-copilot
+
+# Follow the onboarding steps
+gh copilot --version
+```
+
+---
 
 After the modules run, the bootstrap also:
 

@@ -41,11 +41,18 @@ _install_nvm() {
     local latest
     latest=$(curl -s "https://api.github.com/repos/nvm-sh/nvm/releases/latest" \
       | grep '"tag_name"' | sed -E 's/.*"(v[^"]+)".*/\1/')
+    if [[ -z "$latest" ]]; then
+      warn "Failed to resolve latest NVM version — check network or GitHub API rate limit"
+      return 1
+    fi
     step "Installing NVM $latest to ${DIM}$NVM_DIR${RESET}..."
     # Manual install via git clone — the NVM-recommended method for non-default
     # directories. Avoids the installer script, which modifies shell profiles and
     # behaves unpredictably with INSTALL_DIR when it detects previous installations.
-    GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone --depth=1 --branch "$latest" https://github.com/nvm-sh/nvm.git "$NVM_DIR"
+    if ! GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone --depth=1 --branch "$latest" -c advice.detachedHead=false https://github.com/nvm-sh/nvm.git "$NVM_DIR"; then
+      warn "Failed to clone NVM — check network connectivity"
+      return 1
+    fi
     ok "NVM $latest installed"
   fi
 
@@ -64,11 +71,31 @@ _install_node_lts() {
     skip "Node.js $(nvm current)"
     nvm alias default 'lts/*'
     set -u
+    _symlink_node_to_system
     return 0
   fi
   step "Installing Node.js LTS..."
-  nvm install --lts
+  if ! nvm install --lts; then
+    set -u
+    warn "Failed to install Node.js LTS"
+    return 1
+  fi
   nvm alias default 'lts/*'
   set -u
   ok "Node.js $(node --version)"
+  _symlink_node_to_system
+}
+
+# Create a stable /usr/local/bin/node symlink so tools that invoke `node`
+# directly (e.g. gh extensions) work without NVM being loaded in the session.
+_symlink_node_to_system() {
+  local node_bin
+  node_bin="$(command -v node 2>/dev/null || true)"
+  [[ -z "$node_bin" ]] && return 0
+
+  if [[ "$(readlink /usr/local/bin/node 2>/dev/null)" == "$node_bin" ]]; then
+    return 0
+  fi
+  sudo ln -sf "$node_bin" /usr/local/bin/node
+  ok "node symlinked to /usr/local/bin/node"
 }
