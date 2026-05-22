@@ -1,13 +1,10 @@
-# ============================================================
+# ─────────────────────────────────────────────────────────────────────────────
 # setup-windows.ps1 — Phase 1: Windows prerequisites (non-admin)
-# ============================================================
-#
-# Auto-invoked by bootstrap.sh on WSL2.
-# Can also be run manually from PowerShell:
+# Auto-invoked by bootstrap.sh on WSL2. Can also be run manually from PowerShell:
 #   powershell.exe -ExecutionPolicy Bypass -File setup-windows.ps1
-#
-# Does NOT require elevation. Checks and installs where possible.
-# For admin prerequisites (ssh-agent service), run setup-windows-admin.ps1 manually.
+# Does NOT require elevation. For admin prerequisites (ssh-agent), run
+# setup-windows-admin.ps1 manually.
+# ─────────────────────────────────────────────────────────────────────────────
 
 param(
   [string]$StateFile = ""
@@ -15,27 +12,42 @@ param(
 
 $ErrorActionPreference = "Continue"
 
-# ---------------------------------------------------------------------------
-# Output helpers
-# ---------------------------------------------------------------------------
-function Write-Step  { param($msg) Write-Host "  -> $msg" -ForegroundColor Cyan }
-function Write-Ok    { param($msg) Write-Host "  OK $msg" -ForegroundColor Green }
-function Write-Skip  { param($msg) Write-Host "  -- $msg (already present)" -ForegroundColor DarkGray }
-function Write-Warn  { param($msg) Write-Host "  !! $msg" -ForegroundColor Yellow }
+$WinLog = "$env:USERPROFILE\linux-init-bootstrap_win.log"
+
+# ─────────────────────────────────────────────
+# Summary: append a structured log line to the Windows log file
+# Args:    $Level — log level label; $Msg — message text
+# ─────────────────────────────────────────────
+function Write-Log {
+  param([string]$Level, [string]$Msg)
+  $ts  = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss.ffffff")
+  $pid = $PID
+  $caller = (Get-PSCallStack)[1].FunctionName
+  $line = "[$ts - $pid - $caller] $Level  $Msg"
+  Add-Content -Path $WinLog -Value $line -Encoding UTF8
+}
+
+# Output helpers — symbols and colours match the bash side
+function Write-Step  { param($msg) Write-Log "STEP" $msg;    Write-Host "  `u{2192} $msg" -ForegroundColor Blue }
+function Write-Ok    { param($msg) Write-Log "OK" $msg;      Write-Host "  `u{2713} installed        $msg" -ForegroundColor Green }
+function Write-Skip  { param($msg) Write-Log "SKIP" $msg;    Write-Host "  `u{2299} already installed  $msg" -ForegroundColor DarkGreen }
+function Write-Warn  { param($msg) Write-Log "WARN" $msg;    Write-Host "  `u{26A0} $msg" -ForegroundColor Yellow }
+function Write-Info  { param($msg) Write-Log "INFO" $msg;    Write-Host "  `u{2139}  $msg" -ForegroundColor Cyan }
+function Write-Err   { param($msg) Write-Log "ERROR" $msg;   Write-Host "  `u{2716} $msg" -ForegroundColor Red }
 function Write-Header { param($msg)
+  Write-Log "HEADER" $msg
+  $line = [string]::new([char]0x2501, 73)
   Write-Host ""
-  Write-Host "*==========================================================================*" -ForegroundColor Magenta
-  Write-Host "*  $msg" -ForegroundColor Magenta
-  Write-Host "*==========================================================================*" -ForegroundColor Magenta
+  Write-Host $line -ForegroundColor Magenta
+  Write-Host "  $msg" -ForegroundColor Magenta
+  Write-Host $line -ForegroundColor Magenta
 }
 
 Write-Header "Phase 1 — Windows prerequisites (non-admin)"
 
 $Issues = @()
 
-# ---------------------------------------------------------------------------
 # 1. winget availability
-# ---------------------------------------------------------------------------
 Write-Step "Checking winget..."
 $winget = Get-Command winget -ErrorAction SilentlyContinue
 if ($winget) {
@@ -45,9 +57,7 @@ if ($winget) {
   $Issues += "winget missing"
 }
 
-# ---------------------------------------------------------------------------
 # 2. Windows OpenSSH client (ssh.exe)
-# ---------------------------------------------------------------------------
 Write-Step "Checking Windows OpenSSH client (ssh.exe)..."
 $sshExe = Get-Command ssh.exe -ErrorAction SilentlyContinue
 if ($sshExe) {
@@ -57,9 +67,7 @@ if ($sshExe) {
   $Issues += "ssh.exe missing (requires admin — see setup-windows-admin.ps1)"
 }
 
-# ---------------------------------------------------------------------------
-# 3. ssh-agent service (must be disabled — 1Password manages the agent pipe)
-# ---------------------------------------------------------------------------
+# 3. ssh-agent service — must be disabled; 1Password manages the agent pipe
 Write-Step "Checking ssh-agent service is disabled..."
 $sshAgent = Get-Service -Name ssh-agent -ErrorAction SilentlyContinue
 if (-not $sshAgent) {
@@ -72,9 +80,7 @@ if (-not $sshAgent) {
   $Issues += "ssh-agent service active (requires admin — see setup-windows-admin.ps1)"
 }
 
-# ---------------------------------------------------------------------------
 # 4. 1Password Desktop
-# ---------------------------------------------------------------------------
 Write-Step "Checking 1Password Desktop..."
 $opExe = Get-Command op.exe -ErrorAction SilentlyContinue
 $op1P  = Get-Command "1password.exe" -ErrorAction SilentlyContinue
@@ -95,9 +101,7 @@ if ($opExe -or $op1P) {
   }
 }
 
-# ---------------------------------------------------------------------------
 # 5. 1Password SSH agent pipe (confirms agent is active)
-# ---------------------------------------------------------------------------
 Write-Step "Checking 1Password SSH agent pipe..."
 $pipe = "\\.\pipe\openssh-ssh-agent"
 if (Test-Path $pipe) {
@@ -110,19 +114,21 @@ if (Test-Path $pipe) {
   $Issues += "1Password SSH agent not enabled"
 }
 
-# ---------------------------------------------------------------------------
 # 6. Capture SSH signing keys from 1Password agent → write to bootstrap state
-# ---------------------------------------------------------------------------
 Write-Step "Capturing SSH keys from 1Password agent..."
 
 # StateFile is passed as a Windows UNC path by bootstrap.sh (wslpath -w).
 # If not provided (manual run), fall back to writing via wsl.exe default distro.
 $stateFileWin = $StateFile
 
+# ─────────────────────────────────────────────
+# Summary: list public keys from the 1Password SSH agent via ssh-add.exe -L
+# Returns: string[] of key lines, or empty array if agent is unavailable
+# ─────────────────────────────────────────────
 function Get-SshKeys {
   $raw = & ssh-add.exe -L 2>&1
   if ($LASTEXITCODE -ne 0 -or ($raw -join "") -match "error|could not") { return [string[]]@() }
-  # Explicitly cast each match to string to avoid char-array collapse on single results
+  # Cast each match to string explicitly to avoid char-array collapse on single results
   [string[]]($raw | Where-Object { $_ -match "^(sk-)?(ssh-|ecdsa-)" })
 }
 
@@ -137,12 +143,12 @@ while ($attempt -lt $maxRetries) {
   $attempt++
   Write-Warn "No SSH keys found in 1Password agent (attempt $attempt/$maxRetries)"
   Write-Host ""
-  Write-Host "  Ensure 1Password Desktop is configured:" -ForegroundColor Yellow
-  Write-Host "    1. Open 1Password -> Settings -> Developer" -ForegroundColor Yellow
-  Write-Host "       - Enable 'Use the SSH agent'" -ForegroundColor Yellow
-  Write-Host "       - Enable 'Integrate with 1Password CLI'" -ForegroundColor Yellow
-  Write-Host "    2. Your SSH key must be stored as a native SSH Key item" -ForegroundColor Yellow
-  Write-Host "       (New Item -> SSH Key -> import private key file)" -ForegroundColor Yellow
+  Write-Info "Ensure 1Password Desktop is configured:"
+  Write-Info "  1. Open 1Password -> Settings -> Developer"
+  Write-Info "       - Enable 'Use the SSH agent'"
+  Write-Info "       - Enable 'Integrate with 1Password CLI'"
+  Write-Info "  2. Your SSH key must be stored as a native SSH Key item"
+  Write-Info "       (New Item -> SSH Key -> import private key file)"
   Write-Host ""
 
   if ($attempt -ge $maxRetries) { break }
@@ -154,6 +160,10 @@ while ($attempt -lt $maxRetries) {
   }
 }
 
+# ─────────────────────────────────────────────
+# Summary: write or replace a key=value entry in the bootstrap state file
+# Args:    $Key — state key name; $Value — value to write
+# ─────────────────────────────────────────────
 function Write-StateKey {
   param([string]$Key, [string]$Value)
   if (-not $stateFileWin) {
@@ -183,7 +193,7 @@ if ($keys.Count -eq 0) {
   Write-Ok "signing_key written to bootstrap state"
 } else {
   Write-Host ""
-  Write-Host "  Multiple SSH keys found — select the signing key:" -ForegroundColor Cyan
+  Write-Info "Multiple SSH keys found — select the signing key:"
   for ($i = 0; $i -lt $keys.Count; $i++) {
     $k = [string]$keys[$i]
     $preview = $k.Substring(0, [Math]::Min(60, $k.Length))
@@ -213,19 +223,16 @@ if ($keys.Count -eq 0) {
   }
 }
 
-# ---------------------------------------------------------------------------
-# Summary
-# ---------------------------------------------------------------------------
 Write-Host ""
 if ($Issues.Count -eq 0) {
-  Write-Host "  All Windows prerequisites satisfied." -ForegroundColor Green
+  Write-Ok "All Windows prerequisites satisfied."
 } else {
-  Write-Host "  Action required before bootstrap will fully work:" -ForegroundColor Yellow
+  Write-Warn "Action required before bootstrap will fully work:"
   foreach ($issue in $Issues) {
-    Write-Host "    - $issue" -ForegroundColor Yellow
+    Write-Warn "  - $issue"
   }
   Write-Host ""
-  Write-Host "  Admin items: run setup-windows-admin.ps1 from an elevated PowerShell." -ForegroundColor Cyan
+  Write-Info "Admin items: run setup-windows-admin.ps1 from an elevated PowerShell."
 }
 Write-Host ""
 

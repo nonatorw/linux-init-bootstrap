@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# ============================================================
-# 01_shell.sh — Oh My Zsh + Powerlevel10k + plugins
-# ============================================================
+# ─────────────────────────────────────────────────────────────────────────────
+# install/01_shell.sh
+# Shell environment: Oh My Zsh, Powerlevel10k theme, and zsh plugins.
+# ─────────────────────────────────────────────────────────────────────────────
 
 OMZ_DIR="$HOME/.oh-my-zsh"
 OMZ_CUSTOM="${ZSH_CUSTOM:-$OMZ_DIR/custom}"
 
+# ─────────────────────────────────────────────
+# Summary: install Oh My Zsh, Powerlevel10k theme, and zsh plugins
+# ─────────────────────────────────────────────
 install_shell() {
   step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
     "Shell" "Oh My Zsh · Powerlevel10k · plugins"
@@ -15,6 +19,9 @@ install_shell() {
   _install_zsh_plugins
 }
 
+# ─────────────────────────────────────────────
+# Summary: clone and install Oh My Zsh to ~/.oh-my-zsh
+# ─────────────────────────────────────────────
 _install_omz() {
   # Check the main file — -d alone does not guarantee a complete install
   if [[ -f "$OMZ_DIR/oh-my-zsh.sh" ]]; then
@@ -26,10 +33,13 @@ _install_omz() {
   step "Installing Oh My Zsh..."
   # RUNZSH=no prevents the installer from switching the shell interactively
   RUNZSH=no CHSH=no \
-    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+    run_cmd "omz install" sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
   ok "Oh My Zsh installed"
 }
 
+# ─────────────────────────────────────────────
+# Summary: clone Powerlevel10k theme into the Oh My Zsh custom themes directory
+# ─────────────────────────────────────────────
 _install_p10k() {
   local p10k_dir="$OMZ_CUSTOM/themes/powerlevel10k"
   # Check the main theme file
@@ -39,10 +49,13 @@ _install_p10k() {
   fi
   [[ -d "$p10k_dir" ]] && rm -rf "$p10k_dir"
   step "Installing Powerlevel10k theme..."
-  GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$p10k_dir"
+  run_cmd "git clone powerlevel10k" GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$p10k_dir"
   ok "Powerlevel10k installed"
 }
 
+# ─────────────────────────────────────────────
+# Summary: clone zsh plugins (autosuggestions, syntax-highlighting, history-search, completions, bat, z)
+# ─────────────────────────────────────────────
 _install_zsh_plugins() {
   step "Installing zsh plugins..."
 
@@ -73,7 +86,7 @@ _install_zsh_plugins() {
     else
       [[ -d "$plugin_dir" ]] && rm -rf "$plugin_dir"
       step "  Installing $plugin..."
-      GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone --depth=1 "${plugins[$plugin]}" "$plugin_dir"
+      run_cmd "git clone $plugin" GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone --depth=1 "${plugins[$plugin]}" "$plugin_dir"
       ok "  $plugin"
     fi
   done

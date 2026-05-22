@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# ============================================================
-# 04_java.sh — SDKman + Java LTS (Zulu 25.0.3.fx) + Maven + Gradle
-# ============================================================
+# ─────────────────────────────────────────────────────────────────────────────
+# install/04_java.sh
+# Java environment: SDKman, Zulu JDK 25 LTS, Maven, and Gradle.
+# ─────────────────────────────────────────────────────────────────────────────
 
 # Capture original env values before overriding paths
 _ORIG_SDKMAN_DIR="${SDKMAN_DIR:-}"
@@ -11,6 +12,9 @@ SDKMAN_DIR="$HOME/Dev/tools/java/sdkman"
 GRADLE_USER_HOME="$HOME/Dev/tools/java/gradle"
 MAVEN_LOCAL_REPO="$HOME/Dev/tools/java/m2"
 
+# ─────────────────────────────────────────────
+# Summary: install SDKman, Zulu JDK 25, Maven, and Gradle; configure local repository paths
+# ─────────────────────────────────────────────
 install_java() {
   step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
     "Java" "SDKman · Zulu JDK 25 · Maven · Gradle"
@@ -28,6 +32,9 @@ install_java() {
   _configure_maven
 }
 
+# ─────────────────────────────────────────────
+# Summary: install SDKman to ~/Dev/tools/java/sdkman; remove non-standard prior installations
+# ─────────────────────────────────────────────
 _install_sdkman() {
   # Remove non-standard installations before installing.
   # sdk is a shell function — there is no root subcommand. The official mechanism is
@@ -51,7 +58,7 @@ _install_sdkman() {
     # Remove empty directory to prevent false detection by the installer
     [[ -d "$SDKMAN_DIR" && -z "$(ls -A "$SDKMAN_DIR")" ]] && rm -rf "$SDKMAN_DIR"
     export SDKMAN_DIR
-    curl -s "https://get.sdkman.io" | bash
+    run_cmd "sdkman install" curl -s "https://get.sdkman.io" | bash
     ok "SDKman installed"
   fi
 
@@ -64,6 +71,9 @@ _install_sdkman() {
   set -u
 }
 
+# ─────────────────────────────────────────────
+# Summary: install Zulu JDK 25.0.3.fx via SDKman
+# ─────────────────────────────────────────────
 _install_java_lts() {
   if [[ -d "$SDKMAN_DIR/candidates/java/current" ]]; then
     skip "Java  ${DIM}($(java --version 2>/dev/null | head -1 || echo 'Zulu 25'))${RESET}"
@@ -74,6 +84,9 @@ _install_java_lts() {
   ok "Java $(java --version 2>/dev/null | head -1)"
 }
 
+# ─────────────────────────────────────────────
+# Summary: install Maven via SDKman
+# ─────────────────────────────────────────────
 _install_maven() {
   if [[ -d "$SDKMAN_DIR/candidates/maven/current" ]]; then
     skip "Maven  ${DIM}($(mvn --version 2>/dev/null | head -1 || echo 'installed'))${RESET}"
@@ -84,6 +97,9 @@ _install_maven() {
   ok "Maven $(mvn --version 2>/dev/null | head -1)"
 }
 
+# ─────────────────────────────────────────────
+# Summary: install Gradle via SDKman
+# ─────────────────────────────────────────────
 _install_gradle() {
   if [[ -d "$SDKMAN_DIR/candidates/gradle/current" ]]; then
     skip "Gradle  ${DIM}($(gradle --version 2>/dev/null | grep '^Gradle' || echo 'installed'))${RESET}"
@@ -94,12 +110,18 @@ _install_gradle() {
   ok "Gradle $(gradle --version 2>/dev/null | grep '^Gradle' || echo 'installed')"
 }
 
+# ─────────────────────────────────────────────
+# Summary: create GRADLE_USER_HOME directory (path exported by dev_configs.sh)
+# ─────────────────────────────────────────────
 _configure_gradle() {
   step "Configuring GRADLE_USER_HOME → ${DIM}$GRADLE_USER_HOME${RESET}"
   mkdir -p "$GRADLE_USER_HOME"
   # GRADLE_USER_HOME is exported via dev_configs.sh — nothing else needed here
 }
 
+# ─────────────────────────────────────────────
+# Summary: create Maven local repository directory (settings.xml deployed by chezmoi)
+# ─────────────────────────────────────────────
 _configure_maven() {
   step "Configuring Maven local repository → ${DIM}$MAVEN_LOCAL_REPO${RESET}"
   mkdir -p "$MAVEN_LOCAL_REPO"

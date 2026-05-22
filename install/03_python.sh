@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# ============================================================
-# 03_python.sh — pyenv + Python (latest stable 3.x) + Poetry
-# ============================================================
+# ─────────────────────────────────────────────────────────────────────────────
+# install/03_python.sh
+# Python environment: pyenv, latest stable Python 3.x, Poetry, and uv.
+# ─────────────────────────────────────────────────────────────────────────────
 
 # Capture original env values before overriding paths
 # (needed to detect and remove non-standard installations)
@@ -22,6 +23,9 @@ fi
 PYENV_ROOT="$HOME/Dev/tools/python/pyenv"
 POETRY_HOME="$HOME/Dev/tools/python/poetry"
 
+# ─────────────────────────────────────────────
+# Summary: install pyenv, latest stable Python 3.x, Poetry, and uv
+# ─────────────────────────────────────────────
 install_python() {
   step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
     "Python" "pyenv · Python 3.x · Poetry · uv"
@@ -32,6 +36,9 @@ install_python() {
   _install_uv
 }
 
+# ─────────────────────────────────────────────
+# Summary: clone pyenv to ~/Dev/tools/python/pyenv; remove non-standard prior installations
+# ─────────────────────────────────────────────
 _install_pyenv() {
   # Remove non-standard installations before installing.
   # Candidates: historical default (~/.pyenv), original env var (_ORIG_PYENV_ROOT),
@@ -51,7 +58,7 @@ _install_pyenv() {
   else
     step "Installing pyenv to ${DIM}$PYENV_ROOT${RESET}..."
     rm -rf "$PYENV_ROOT"
-    GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
+    run_cmd "git clone pyenv" GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
 
     step "  Compiling pyenv native extension..."
     cd "$PYENV_ROOT" && src/configure && make -C src 2>/dev/null; cd - >/dev/null
@@ -61,6 +68,9 @@ _install_pyenv() {
   _install_pyenv_plugins
 }
 
+# ─────────────────────────────────────────────
+# Summary: clone pyenv-doctor and pyenv-update into the pyenv plugins directory
+# ─────────────────────────────────────────────
 _install_pyenv_plugins() {
   declare -A pyenv_plugins=(
     ["pyenv-doctor"]="https://github.com/pyenv/pyenv-doctor"
@@ -74,12 +84,15 @@ _install_pyenv_plugins() {
     else
       [[ -d "$plugin_dir" ]] && rm -rf "$plugin_dir"
       step "  Installing $plugin..."
-      GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone "${pyenv_plugins[$plugin]}" "$plugin_dir"
+      run_cmd "git clone $plugin" GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone "${pyenv_plugins[$plugin]}" "$plugin_dir"
       ok "  $plugin"
     fi
   done
 }
 
+# ─────────────────────────────────────────────
+# Summary: install the latest stable Python 3.x via pyenv and set it as the global version
+# ─────────────────────────────────────────────
 _install_python_version() {
   # Export PYENV_ROOT explicitly so subprocesses (pyenv-install, python-build)
   # inherit the correct path; without export they would default to ~/.pyenv
@@ -103,6 +116,9 @@ _install_python_version() {
   ok "Active Python: $(python --version)"
 }
 
+# ─────────────────────────────────────────────
+# Summary: install Poetry to ~/Dev/tools/python/poetry; remove non-standard prior installations
+# ─────────────────────────────────────────────
 _install_poetry() {
   # Remove non-standard installations before installing
   local candidates=("$HOME/.poetry" "$HOME/.local/share/pypoetry")
@@ -121,11 +137,14 @@ _install_poetry() {
   step "Installing Poetry to ${DIM}$POETRY_HOME${RESET}..."
   rm -rf "$POETRY_HOME"
   export POETRY_HOME
-  curl -sSL https://install.python-poetry.org | python3 -
+  run_cmd "poetry install" curl -sSL https://install.python-poetry.org | python3 -
   "$POETRY_HOME/bin/poetry" config virtualenvs.in-project true
   ok "$("$POETRY_HOME/bin/poetry" --version)  ${DIM}(virtualenvs.in-project = true)${RESET}"
 }
 
+# ─────────────────────────────────────────────
+# Summary: install uv (fast Python package manager) to ~/.local/bin
+# ─────────────────────────────────────────────
 _install_uv() {
   local uv_bin="${UV_INSTALL_DIR:-$HOME/.local/bin}/uv"
   if [[ -x "$uv_bin" ]]; then
@@ -133,7 +152,7 @@ _install_uv() {
     return 0
   fi
   step "Installing uv..."
-  curl -LsSf https://astral.sh/uv/install.sh | sh
+  run_cmd "uv install" curl -LsSf https://astral.sh/uv/install.sh | sh
   # Ensure the newly installed binary is in the session PATH
   export PATH="$HOME/.local/bin:$PATH"
   ok "$("$uv_bin" --version)"

@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# ============================================================
-# 00_packages.sh — pacotes base do sistema
-# ============================================================
+# ─────────────────────────────────────────────────────────────────────────────
+# install/00_packages.sh
+# Base system packages: build tools, zsh, eza, bat, jq, GitHub CLI.
+# ─────────────────────────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────
+# Summary: install base system packages (build tools, zsh, eza, bat, jq, gh CLI)
+# ─────────────────────────────────────────────
 install_packages() {
   step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
     "Packages" "build-essential · zsh · eza · bat · jq · gh"
@@ -15,7 +19,7 @@ install_packages() {
 
   if [[ "$PKG_MANAGER" == "apt" ]]; then
     step "Updating apt package index..."
-    sudo apt update -y
+    run_cmd "apt update" sudo apt update -y
     step "Installing build dependencies and base tools..."
     pkg_install build-essential  \
                 curl             \
@@ -39,10 +43,10 @@ install_packages() {
                 zip
   elif [[ "$PKG_MANAGER" == "dnf" ]]; then
     step "Upgrading system packages..."
-    sudo dnf5 check-upgrade || true
-    sudo dnf5 upgrade -y
+    run_cmd "dnf5 check-upgrade" sudo dnf5 check-upgrade || true
+    run_cmd "dnf5 upgrade" sudo dnf5 upgrade -y
     step "Installing system tool groups..."
-    sudo dnf5 group install -y system-tools admin-tools
+    run_cmd "dnf5 group install" sudo dnf5 group install -y system-tools admin-tools
     step "Installing build dependencies and base tools..."
     pkg_install gcc             \
                 make            \
@@ -133,6 +137,9 @@ install_packages() {
   fi
 }
 
+# ─────────────────────────────────────────────
+# Summary: install GitHub CLI via the official apt/dnf repository or brew
+# ─────────────────────────────────────────────
 _install_gh() {
   if has gh; then
     skip "$(gh --version | head -1)"
@@ -144,12 +151,12 @@ _install_gh() {
       step "Adding GitHub CLI apt repository..."
       if [[ ! -f /etc/apt/sources.list.d/github-cli.list ]]; then
         sudo mkdir -p /etc/apt/keyrings
-        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        run_cmd "gh keyring" curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
           | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
         sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
           | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-        sudo apt update -y
+        run_cmd "apt update" sudo apt update -y
       fi
       pkg_install gh
       ;;

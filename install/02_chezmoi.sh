@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# ============================================================
-# 02_chezmoi.sh — chezmoi (dotfiles manager)
-# ============================================================
+# ─────────────────────────────────────────────────────────────────────────────
+# install/02_chezmoi.sh
+# Dotfile manager: install chezmoi to ~/.local/bin.
+# ─────────────────────────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────
+# Summary: install chezmoi to ~/.local/bin if not already present
+# ─────────────────────────────────────────────
 install_chezmoi() {
   step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
     "chezmoi" "dotfile manager"
@@ -15,6 +19,6 @@ install_chezmoi() {
     return 0
   fi
   step "Installing chezmoi to ~/.local/bin..."
-  sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME/.local/bin"
+  run_cmd "chezmoi install" sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME/.local/bin"
   ok "$(chezmoi --version)"
 }

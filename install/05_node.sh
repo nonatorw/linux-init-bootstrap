@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# ============================================================
-# 05_node.sh — NVM + Node.js LTS
-# ============================================================
+# ─────────────────────────────────────────────────────────────────────────────
+# install/05_node.sh
+# Node.js environment: NVM and Node.js LTS.
+# ─────────────────────────────────────────────────────────────────────────────
 
 # Capture original env value before overriding path
 _ORIG_NVM_DIR="${NVM_DIR:-}"
@@ -9,6 +10,9 @@ _ORIG_NVM_DIR="${NVM_DIR:-}"
 # Always use the path defined by this script, ignoring external env vars
 NVM_DIR="$HOME/Dev/tools/node/nvm"
 
+# ─────────────────────────────────────────────
+# Summary: install NVM and Node.js LTS
+# ─────────────────────────────────────────────
 install_node() {
   step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
     "Node.js" "NVM · Node.js LTS"
@@ -17,6 +21,10 @@ install_node() {
   _install_node_lts
 }
 
+# ─────────────────────────────────────────────
+# Summary: clone NVM to ~/Dev/tools/node/nvm via git; remove non-standard prior installations
+# Returns: 0 on success, 1 if network or version resolution fails
+# ─────────────────────────────────────────────
 _install_nvm() {
   # Remove non-standard installations before installing.
   # nvm is a shell function — there is no root subcommand. NVM's own documentation
@@ -49,7 +57,7 @@ _install_nvm() {
     # Manual install via git clone — the NVM-recommended method for non-default
     # directories. Avoids the installer script, which modifies shell profiles and
     # behaves unpredictably with INSTALL_DIR when it detects previous installations.
-    if ! GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone --depth=1 --branch "$latest" -c advice.detachedHead=false https://github.com/nvm-sh/nvm.git "$NVM_DIR"; then
+    if ! run_cmd "git clone nvm" GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone --depth=1 --branch "$latest" -c advice.detachedHead=false https://github.com/nvm-sh/nvm.git "$NVM_DIR"; then
       warn "Failed to clone NVM — check network connectivity"
       return 1
     fi
@@ -65,6 +73,10 @@ _install_nvm() {
   set -u
 }
 
+# ─────────────────────────────────────────────
+# Summary: install Node.js LTS via NVM and set it as the default alias
+# Returns: 0 on success, 1 if install fails
+# ─────────────────────────────────────────────
 _install_node_lts() {
   set +u
   if nvm current 2>/dev/null | grep -qv "none\|N/A"; then
@@ -86,8 +98,9 @@ _install_node_lts() {
   _symlink_node_to_system
 }
 
-# Create a stable /usr/local/bin/node symlink so tools that invoke `node`
-# directly (e.g. gh extensions) work without NVM being loaded in the session.
+# ─────────────────────────────────────────────
+# Summary: create /usr/local/bin/node symlink so tools invoking node directly (e.g. gh extensions) work without NVM loaded
+# ─────────────────────────────────────────────
 _symlink_node_to_system() {
   local node_bin
   node_bin="$(command -v node 2>/dev/null || true)"

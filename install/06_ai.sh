@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-# ============================================================
-# 06_ai.sh — Claude Code + Gemini CLI
-# Instalados em ~/Dev/tools/ai/ via npm --prefix
-# Depende do Node.js (05_node.sh) estar instalado
-# ============================================================
+# ─────────────────────────────────────────────────────────────────────────────
+# install/06_ai.sh
+# AI tooling: Claude Code and Gemini CLI, installed to ~/Dev/tools/ai/ via npm.
+# Requires Node.js (05_node.sh) to be installed first.
+# ─────────────────────────────────────────────────────────────────────────────
 
 CLAUDE_HOME="${CLAUDE_HOME:-$HOME/Dev/tools/ai/claude}"
 GEMINI_HOME="${GEMINI_HOME:-$HOME/Dev/tools/ai/gemini}"
 
+# ─────────────────────────────────────────────
+# Summary: install Claude Code and Gemini CLI (requires Node.js from 05_node.sh)
+# Returns: 0 on success, 1 if Node.js is not available
+# ─────────────────────────────────────────────
 install_ai() {
   step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
     "AI Tools" "Claude Code · Gemini CLI"
@@ -22,6 +26,9 @@ install_ai() {
   _init_gemini_dir
 }
 
+# ─────────────────────────────────────────────
+# Summary: install @anthropic-ai/claude-code via npm to ~/Dev/tools/ai/claude
+# ─────────────────────────────────────────────
 _install_claude_code() {
   if [[ -f "$CLAUDE_HOME/bin/claude" ]]; then
     skip "Claude Code  ${DIM}($("$CLAUDE_HOME/bin/claude" --version 2>/dev/null || echo 'installed'))${RESET}"
@@ -35,6 +42,9 @@ _install_claude_code() {
   ok "Claude Code installed"
 }
 
+# ─────────────────────────────────────────────
+# Summary: install @google/gemini-cli via npm to ~/Dev/tools/ai/gemini
+# ─────────────────────────────────────────────
 _install_gemini_cli() {
   if [[ -f "$GEMINI_HOME/bin/gemini" ]]; then
     skip "Gemini CLI"
@@ -50,6 +60,9 @@ _install_gemini_cli() {
   ok "Gemini CLI installed"
 }
 
+# ─────────────────────────────────────────────
+# Summary: initialise Gemini config directory with an empty projects.json if not present
+# ─────────────────────────────────────────────
 _init_gemini_dir() {
   local gemini_config_dir="$HOME/Dev/tools/ai/gemini-config"
   mkdir -p "$gemini_config_dir"

@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# ============================================================
-# lib/platform.sh — platform detection and package manager abstraction
-# ============================================================
+# ─────────────────────────────────────────────────────────────────────────────
+# lib/platform.sh
+# Platform detection and package manager abstraction.
+# Exports PLATFORM (wsl2|silverblue|linux|macos) and PKG_MANAGER (apt|brew|dnf).
+# ─────────────────────────────────────────────────────────────────────────────
 
-# PLATFORM: wsl2 | silverblue | linux | macos
-# PKG_MANAGER: apt | brew | dnf
+# ─────────────────────────────────────────────
+# Summary: detect the current platform and package manager; export PLATFORM and PKG_MANAGER
+# Outputs: exports PLATFORM and PKG_MANAGER into the environment
+# ─────────────────────────────────────────────
 detect_platform() {
   case "$(uname -s)" in
     Darwin)
@@ -46,13 +50,15 @@ detect_platform() {
   export PLATFORM PKG_MANAGER
 }
 
-# Install one or more packages using the current platform's package manager.
-# Usage: pkg_install curl git zsh
+# ─────────────────────────────────────────────
+# Summary: install one or more packages using the active package manager
+# Args:    $* — package names
+# ─────────────────────────────────────────────
 pkg_install() {
   case "$PKG_MANAGER" in
-    apt)  sudo apt install -y "$@" ;;
-    brew) brew install "$@" ;;
-    dnf)  sudo dnf install -y "$@" ;;
+    apt)  run_cmd "apt install" sudo apt install -y "$@" ;;
+    brew) run_cmd "brew install" brew install "$@" ;;
+    dnf)  run_cmd "dnf install" sudo dnf install -y "$@" ;;
     *)
       echo "[platform] Unknown package manager: $PKG_MANAGER"
       return 1
@@ -60,12 +66,18 @@ pkg_install() {
   esac
 }
 
-# Check whether a command exists
+# ─────────────────────────────────────────────
+# Summary: test whether a command exists in PATH
+# Args:    $1 — command name
+# Returns: 0 if found, 1 if not
+# ─────────────────────────────────────────────
 has() {
   command -v "$1" >/dev/null 2>&1
 }
 
-# Ensure Homebrew is installed (Silverblue and macOS)
+# ─────────────────────────────────────────────
+# Summary: install Homebrew if not present and activate it in the current session PATH
+# ─────────────────────────────────────────────
 ensure_brew() {
   if has brew; then
     return 0

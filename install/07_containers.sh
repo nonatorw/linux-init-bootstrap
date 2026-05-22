@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# ============================================================
-# 07_containers.sh — Podman
-# ============================================================
+# ─────────────────────────────────────────────────────────────────────────────
+# install/07_containers.sh
+# Container tooling: Podman (platform-aware).
+# ─────────────────────────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────
+# Summary: install Podman — pkg_install on Linux/WSL2, informational on Silverblue, brew on macOS
+# ─────────────────────────────────────────────
 install_containers() {
   step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
     "Containers" "Podman"

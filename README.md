@@ -5,6 +5,11 @@ Installs development tools, populates SSH known_hosts, clones
 [chezmoi-dotfiles](https://github.com/nonatorw/chezmoi-dotfiles), and applies dotfiles —
 all in a single command.
 
+## Documentation
+
+- [docs/SETUP.md](docs/SETUP.md) — step-by-step installation guide (start here)
+- [docs/USAGE.md](docs/USAGE.md) — flags, examples, post-install, troubleshooting
+
 ## Overview
 
 The bootstrap is split into three phases. On a fresh WSL2 machine, run them in order.
@@ -15,8 +20,8 @@ Phase 1 (Windows — WSL2 only): Windows prerequisites
   setup-windows-admin.ps1   ← run once, elevated PowerShell
   setup-windows.ps1         ← auto-invoked by bootstrap.sh
 
-Phase 2 (WSL — WSL2 only):  WSL-level prerequisites
-  setup-wsl.sh              ← run before bootstrap.sh
+Phase 2 (Linux prereqs):         WSL2 + standalone Linux
+  setup-prereqs-linux.sh              ← run before bootstrap.sh
 
 Phase 3 (WSL / Linux):      Tool install + dotfiles
   bootstrap.sh              ← main entry point
@@ -36,7 +41,7 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 # WSL: clone repo and run all phases
 git clone https://github.com/nonatorw/linux-init-bootstrap.git ~/Dev/repos/linux-init-bootstrap
 cd ~/Dev/repos/linux-init-bootstrap
-bash setup-wsl.sh
+bash setup-prereqs-linux.sh
 bash bootstrap.sh
 ```
 
@@ -55,23 +60,39 @@ Restart the terminal when it finishes.
 Each phase has a self-contained entry point in `gist/` that clones the repo and runs the
 appropriate script — useful for bootstrapping from a completely fresh machine.
 
-| Phase                 | Command                                              |
-|-----------------------|------------------------------------------------------|
-| Phase 1 (Windows)     | `irm <gist-url>/phase1-windows.ps1 \| iex`           |
-| Phase 2 (WSL prereqs) | `curl -fsSL <gist-url>/phase2-wsl.sh \| bash`        |
-| Phase 3 (bootstrap)   | `curl -fsSL <gist-url>/phase3-bootstrap.sh \| bash`  |
+**Phase 1 (Windows)** — run from a normal PowerShell window:
 
-> Upload the files in `gist/` to a GitHub Gist and replace `<gist-url>` with the raw URL.
+```powershell
+$tmp = "$env:TEMP\linux-init-phase1.ps1"
+Invoke-WebRequest "https://gist.githubusercontent.com/nonatorw/79321dfef85099cdbad1d2f0fda5f959/raw/linux-init-phase1-windows-prereqs.ps1" -OutFile $tmp
+powershell.exe -ExecutionPolicy Bypass -File $tmp
+```
+
+**Phase 2 (Linux prereqs):**
+
+```bash
+curl -fsSL https://gist.githubusercontent.com/nonatorw/79321dfef85099cdbad1d2f0fda5f959/raw/linux-init-phase2-linux-prereqs.sh | bash
+```
+
+**Phase 3 (bootstrap):**
+
+```bash
+curl -fsSL https://gist.githubusercontent.com/nonatorw/79321dfef85099cdbad1d2f0fda5f959/raw/linux-init-phase3-bootstrap.sh | bash
+```
+
+> Gist: [gist.github.com/nonatorw/79321dfef85099cdbad1d2f0fda5f959](https://gist.github.com/nonatorw/79321dfef85099cdbad1d2f0fda5f959)
 
 ## Flags
 
-| Flag               | Description                                                         |
-|--------------------|---------------------------------------------------------------------|
-| `--clean-install`  | Remove all tools, dotfiles, and state, then reinstall from scratch  |
+| Flag               | Description                                                                          |
+|--------------------|--------------------------------------------------------------------------------------|
+| `--help`           | Flag reference. `--help <flag>` expands detail for a specific flag.                  |
+| `--verbose`        | Show external tool output in terminal (delimited blocks).                            |
+| `--clean-tools`    | Remove dev tools and tool state. Preserves shell, dotfiles, and system packages.     |
+| `--reinstall`      | Full state reset + clean tools + complete reinstall from scratch.                    |
+| `--clean-install`  | Remove all tools, dotfiles, and state, then reinstall from scratch.                  |
 
-```bash
-bash bootstrap.sh --clean-install
-```
+See [docs/USAGE.md](docs/USAGE.md) for examples and details on each flag.
 
 ## Resume on Error
 
@@ -87,7 +108,7 @@ sed -i '/^module_03_python=/d' ~/.bootstrap-state
 To reset everything:
 
 ```bash
-bash bootstrap.sh --clean-install
+bash bootstrap.sh --reinstall
 ```
 
 ## What Phase 3 Installs
@@ -213,7 +234,7 @@ ssh -T git@github.com   # should say "Hi <user>! You've successfully authenticat
 
 ## Key Design Decisions
 
-- **Three phases** — Windows prerequisites, WSL prerequisites, and tool install are separated
+- **Three phases** — Windows prerequisites, Linux prerequisites, and tool install are separated
   so each can be run and re-run independently.
 - **State tracking** — `~/.bootstrap-state` records each module's result so the bootstrap
   can resume after failure without re-running completed steps.
