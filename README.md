@@ -15,16 +15,16 @@ all in a single command.
 The bootstrap is split into three phases. On a fresh WSL2 machine, run them in order.
 On a native Linux machine, only Phase 3 is needed.
 
-```text
-Phase 1 (Windows — WSL2 only): Windows prerequisites
-  setup-windows-admin.ps1   ← run once, elevated PowerShell
-  setup-windows.ps1         ← auto-invoked by bootstrap.sh
+```console
+# Phase 1 (Windows — WSL2 only): Windows prerequisites
+setup-windows-admin.ps1          # ← run once, elevated PowerShell
+setup-windows.ps1                # ← auto-invoked by bootstrap.sh
 
-Phase 2 (Linux prereqs):         WSL2 + standalone Linux
-  setup-prereqs-linux.sh              ← run before bootstrap.sh
+# Phase 2 (Linux prereqs):       WSL2 + standalone Linux
+setup-prereqs-linux.sh           # ← run before bootstrap.sh
 
-Phase 3 (WSL / Linux):      Tool install + dotfiles
-  bootstrap.sh              ← main entry point
+# Phase 3 (WSL / Linux):         Tool install + dotfiles
+bootstrap.sh                     # ← main entry point
 ```
 
 ## Quick Start
