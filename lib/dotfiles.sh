@@ -121,7 +121,7 @@ _apply_dotfiles() {
     skip "chezmoi-dotfiles  ${DIM}($dest)${RESET}"
   else
     step "Cloning chezmoi-dotfiles to ${DIM}$dest${RESET}..."
-    if ! GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone "$repo" "$dest"; then
+    if ! git clone "$repo" "$dest"; then
       warn "Failed to clone $repo"
       warn "Check: repo exists and is public, or run manually: git clone $repo $dest"
       return 1

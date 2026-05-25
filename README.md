@@ -29,20 +29,62 @@ bootstrap.sh                     # ← main entry point
 
 ## Quick Start
 
-### WSL2
+### WSL2 — Ubuntu
+
+All phases are run from PowerShell. Phase 1 is Windows-side; Phases 2 and 3 invoke WSL directly so there is no context gap between what you type and what runs.
 
 ```powershell
-# Windows: run once from elevated PowerShell
+# Phase 1 (Windows side — run once from elevated PowerShell)
 Set-ExecutionPolicy Bypass -Scope Process -Force
 .\setup-windows-admin.ps1
 ```
 
-```bash
-# WSL: clone repo and run all phases
-git clone https://github.com/nonatorw/linux-init-bootstrap.git ~/Dev/repos/linux-init-bootstrap
-cd ~/Dev/repos/linux-init-bootstrap
-bash setup-prereqs-linux.sh
-bash bootstrap.sh
+```powershell
+# Phase 2 — Linux prerequisites (replace Ubuntu-26.04 with your distro name)
+wsl -d Ubuntu-26.04 -- bash -c "
+  git clone https://github.com/nonatorw/linux-init-bootstrap.git ~/Dev/repos/linux-init-bootstrap
+  bash ~/Dev/repos/linux-init-bootstrap/setup-prereqs-linux.sh
+"
+```
+
+```powershell
+# Phase 3 — tool install + dotfiles (interactive — opens a WSL session)
+wsl -d Ubuntu-26.04
+# Inside WSL:
+bash ~/Dev/repos/linux-init-bootstrap/bootstrap.sh
+```
+
+### WSL2 — Fedora
+
+Fedora requires systemd to be enabled before running the bootstrap, otherwise Windows
+interop (`powershell.exe`, `ssh-add.exe`) is not reachable from within WSL2.
+
+```powershell
+# Enable systemd (run once after first Fedora launch)
+wsl -d FedoraLinux-44 -- bash -c "
+  sudo bash -c 'cat > /etc/wsl.conf << EOF
+[boot]
+systemd=true
+EOF'
+"
+# Restart to activate systemd
+wsl --shutdown
+```
+
+Then proceed with the same steps as Ubuntu (replace the distro name accordingly):
+
+```powershell
+wsl -d FedoraLinux-44 -- bash -c "
+  git clone https://github.com/nonatorw/linux-init-bootstrap.git ~/Dev/repos/linux-init-bootstrap
+  bash ~/Dev/repos/linux-init-bootstrap/setup-prereqs-linux.sh
+"
+```
+
+```powershell
+# Phase 3 — interactive session
+wsl -d FedoraLinux-44
+# Inside WSL:
+bash ~/Dev/repos/linux-init-bootstrap/bootstrap.sh
 ```
 
 ### Native Linux
@@ -50,6 +92,7 @@ bash bootstrap.sh
 ```bash
 git clone https://github.com/nonatorw/linux-init-bootstrap.git ~/Dev/repos/linux-init-bootstrap
 cd ~/Dev/repos/linux-init-bootstrap
+bash setup-prereqs-linux.sh
 bash bootstrap.sh
 ```
 
@@ -68,15 +111,20 @@ Invoke-WebRequest "https://gist.githubusercontent.com/nonatorw/79321dfef85099cdb
 powershell.exe -ExecutionPolicy Bypass -File $tmp
 ```
 
-**Phase 2 (Linux prereqs):**
+**Phase 2 (Linux prereqs)** — invoke from PowerShell, replace the distro name as needed:
 
-```bash
-curl -fsSL https://gist.githubusercontent.com/nonatorw/79321dfef85099cdbad1d2f0fda5f959/raw/linux-init-phase2-linux-prereqs.sh | bash
+```powershell
+wsl -d Ubuntu-26.04 -- bash -c "curl -fsSL https://gist.githubusercontent.com/nonatorw/79321dfef85099cdbad1d2f0fda5f959/raw/linux-init-phase2-linux-prereqs.sh | bash"
 ```
 
-**Phase 3 (bootstrap):**
+**Phase 3 (bootstrap)** — requires an interactive session for TTY prompts:
+
+```powershell
+wsl -d Ubuntu-26.04
+```
 
 ```bash
+# Inside WSL:
 curl -fsSL https://gist.githubusercontent.com/nonatorw/79321dfef85099cdbad1d2f0fda5f959/raw/linux-init-phase3-bootstrap.sh | bash
 ```
 
@@ -84,13 +132,15 @@ curl -fsSL https://gist.githubusercontent.com/nonatorw/79321dfef85099cdbad1d2f0f
 
 ## Flags
 
-| Flag               | Description                                                                          |
-|--------------------|--------------------------------------------------------------------------------------|
-| `--help`           | Flag reference. `--help <flag>` expands detail for a specific flag.                  |
-| `--verbose`        | Show external tool output in terminal (delimited blocks).                            |
-| `--clean-tools`    | Remove dev tools and tool state. Preserves shell, dotfiles, and system packages.     |
-| `--reinstall`      | Full state reset + clean tools + complete reinstall from scratch.                    |
-| `--clean-install`  | Remove all tools, dotfiles, and state, then reinstall from scratch.                  |
+| Flag               | Description                                                                                                                            |
+|--------------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `--help`           | Flag reference. `--help <flag>` expands detail for a specific flag.                                                                    |
+| `--verbose`        | Show external tool output in terminal (delimited blocks).                                                                              |
+| `--skip-dotfiles`  | Skip the dotfiles section after tool installation.                                                                                     |
+| `--modules <list>` | Run only the specified modules (comma-separated). Names: `packages`, `shell`, `chezmoi`, `python`, `java`, `node`, `ai`, `containers`. |
+| `--clean-tools`    | Remove dev tools and tool state. Preserves shell, dotfiles, and system packages.                                                       |
+| `--reinstall`      | Full state reset + clean tools + complete reinstall from scratch.                                                                      |
+| `--clean-install`  | Remove all tools, dotfiles, and state, then reinstall from scratch.                                                                    |
 
 See [docs/USAGE.md](docs/USAGE.md) for examples and details on each flag.
 

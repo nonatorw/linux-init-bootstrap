@@ -49,7 +49,7 @@ _install_p10k() {
   fi
   [[ -d "$p10k_dir" ]] && rm -rf "$p10k_dir"
   step "Installing Powerlevel10k theme..."
-  run_cmd "git clone powerlevel10k" GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$p10k_dir"
+  run_cmd "git clone powerlevel10k" git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$p10k_dir"
   ok "Powerlevel10k installed"
 }
 
@@ -86,7 +86,7 @@ _install_zsh_plugins() {
     else
       [[ -d "$plugin_dir" ]] && rm -rf "$plugin_dir"
       step "  Installing $plugin..."
-      run_cmd "git clone $plugin" GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone --depth=1 "${plugins[$plugin]}" "$plugin_dir"
+      run_cmd "git clone $plugin" git clone --depth=1 "${plugins[$plugin]}" "$plugin_dir"
       ok "  $plugin"
     fi
   done

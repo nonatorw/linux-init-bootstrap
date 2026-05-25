@@ -152,9 +152,9 @@ _install_gh() {
     apt)
       step "Adding GitHub CLI apt repository..."
       if [[ ! -f /etc/apt/sources.list.d/github-cli.list ]]; then
-        sudo mkdir -p /etc/apt/keyrings
-        run_cmd "gh keyring" curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-          | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+        sudo mkdir -p /usr/share/keyrings
+        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+          | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg >> "$BOOTSTRAP_LOG" 2>&1
         sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
           | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
