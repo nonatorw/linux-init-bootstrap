@@ -12,6 +12,14 @@ param(
 
 $ErrorActionPreference = "Continue"
 
+# ─────────────────────────────────────────────
+# Summary: return $true if stdin is connected to an interactive console
+# Used to guard Read-Host calls — throws a terminating exception under -NonInteractive
+# ─────────────────────────────────────────────
+function Test-Interactive {
+  try { $null = [Console]::KeyAvailable; return $true } catch { return $false }
+}
+
 $WinLog = "$env:USERPROFILE\linux-init-bootstrap_win.log"
 
 # ─────────────────────────────────────────────
@@ -20,20 +28,20 @@ $WinLog = "$env:USERPROFILE\linux-init-bootstrap_win.log"
 # ─────────────────────────────────────────────
 function Write-Log {
   param([string]$Level, [string]$Msg)
-  $ts  = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss.ffffff")
-  $pid = $PID
+  $ts     = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss.ffffff")
+  $procId = $PID
   $caller = (Get-PSCallStack)[1].FunctionName
-  $line = "[$ts - $pid - $caller] $Level  $Msg"
+  $line   = "[$ts - $procId - $caller] $Level  $Msg"
   Add-Content -Path $WinLog -Value $line -Encoding UTF8
 }
 
 # Output helpers — symbols and colours match the bash side
-function Write-Step  { param($msg) Write-Log "STEP" $msg;    Write-Host "  `u{2192} $msg" -ForegroundColor Blue }
-function Write-Ok    { param($msg) Write-Log "OK" $msg;      Write-Host "  `u{2713} installed        $msg" -ForegroundColor Green }
-function Write-Skip  { param($msg) Write-Log "SKIP" $msg;    Write-Host "  `u{2299} already installed  $msg" -ForegroundColor DarkGreen }
-function Write-Warn  { param($msg) Write-Log "WARN" $msg;    Write-Host "  `u{26A0} $msg" -ForegroundColor Yellow }
-function Write-Info  { param($msg) Write-Log "INFO" $msg;    Write-Host "  `u{2139}  $msg" -ForegroundColor Cyan }
-function Write-Err   { param($msg) Write-Log "ERROR" $msg;   Write-Host "  `u{2716} $msg" -ForegroundColor Red }
+function Write-Step  { param($msg) Write-Log "STEP" $msg;    Write-Host "  $([char]0x2192) $msg" -ForegroundColor Blue }
+function Write-Ok    { param($msg) Write-Log "OK" $msg;      Write-Host "  $([char]0x2713) installed        $msg" -ForegroundColor Green }
+function Write-Skip  { param($msg) Write-Log "SKIP" $msg;    Write-Host "  $([char]0x2299) already installed  $msg" -ForegroundColor DarkGreen }
+function Write-Warn  { param($msg) Write-Log "WARN" $msg;    Write-Host "  $([char]0x26A0) $msg" -ForegroundColor Yellow }
+function Write-Info  { param($msg) Write-Log "INFO" $msg;    Write-Host "  $([char]0x2139)  $msg" -ForegroundColor Cyan }
+function Write-Err   { param($msg) Write-Log "ERROR" $msg;   Write-Host "  $([char]0x2716) $msg" -ForegroundColor Red }
 function Write-Header { param($msg)
   Write-Log "HEADER" $msg
   $line = [string]::new([char]0x2501, 73)
@@ -168,11 +176,11 @@ function Write-StateKey {
   param([string]$Key, [string]$Value)
   if (-not $stateFileWin) {
     Write-Warn "StateFile path not provided — signing_key not persisted (bootstrap.sh will prompt)"
-    return
+    return $false
   }
   if (-not (Test-Path $stateFileWin)) {
     Write-Warn "State file does not exist — signing_key not persisted (bootstrap.sh will prompt)"
-    return
+    return $false
   }
   # Read existing lines (split by newline to avoid char-array issue), filter key, append new entry
   $existing = (Get-Content -Raw $stateFileWin) -split "`n" |
@@ -181,6 +189,7 @@ function Write-StateKey {
   $existing += "${Key}=${Value}"
   # Write without BOM — preserves Linux file ownership set by bootstrap.sh
   [System.IO.File]::WriteAllLines($stateFileWin, $existing, [System.Text.UTF8Encoding]::new($false))
+  return $true
 }
 
 if ($keys.Count -eq 0) {
@@ -189,8 +198,9 @@ if ($keys.Count -eq 0) {
   $signingKey = [string]$keys[0]
   $preview = $signingKey.Substring(0, [Math]::Min(60, $signingKey.Length))
   Write-Ok "SSH signing key captured: $preview..."
-  Write-StateKey "signing_key" $signingKey
-  Write-Ok "signing_key written to bootstrap state"
+  if (Write-StateKey "signing_key" $signingKey) {
+    Write-Ok "signing_key written to bootstrap state"
+  }
 } else {
   Write-Host ""
   Write-Info "Multiple SSH keys found — select the signing key:"
@@ -218,8 +228,9 @@ if ($keys.Count -eq 0) {
     Write-Warn "Invalid selection — enter a number between 1 and $($keys.Count), or C to cancel"
   }
   if ($signingKey) {
-    Write-StateKey "signing_key" $signingKey
-    Write-Ok "signing_key written to bootstrap state"
+    if (Write-StateKey "signing_key" $signingKey) {
+      Write-Ok "signing_key written to bootstrap state"
+    }
   }
 }
 

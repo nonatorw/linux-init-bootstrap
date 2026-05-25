@@ -58,10 +58,12 @@ _install_pyenv() {
   else
     step "Installing pyenv to ${DIM}$PYENV_ROOT${RESET}..."
     rm -rf "$PYENV_ROOT"
-    run_cmd "git clone pyenv" GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
+    run_cmd "git clone pyenv" git clone https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
 
     step "  Compiling pyenv native extension..."
-    cd "$PYENV_ROOT" && src/configure && make -C src 2>/dev/null; cd - >/dev/null
+    if [[ -f "$PYENV_ROOT/src/configure" ]]; then
+      ( cd "$PYENV_ROOT" && src/configure && make -C src 2>/dev/null ) || true
+    fi
     ok "pyenv installed"
   fi
 
@@ -84,7 +86,7 @@ _install_pyenv_plugins() {
     else
       [[ -d "$plugin_dir" ]] && rm -rf "$plugin_dir"
       step "  Installing $plugin..."
-      run_cmd "git clone $plugin" GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone "${pyenv_plugins[$plugin]}" "$plugin_dir"
+      run_cmd "git clone $plugin" git clone "${pyenv_plugins[$plugin]}" "$plugin_dir"
       ok "  $plugin"
     fi
   done
@@ -97,6 +99,9 @@ _install_python_version() {
   # Export PYENV_ROOT explicitly so subprocesses (pyenv-install, python-build)
   # inherit the correct path; without export they would default to ~/.pyenv
   export PYENV_ROOT
+  # Strip Windows-mounted paths (/mnt/c/...) to prevent pyenv-win from
+  # shadowing the Linux pyenv binary when running inside WSL2.
+  PATH="$(echo "$PATH" | tr ':' '\n' | grep -v '^/mnt/[a-z]/' | tr '\n' ':' | sed 's/:$//')"
   export PATH="$PYENV_ROOT/bin:$PATH"
   eval "$(pyenv init - bash)"
 
@@ -137,7 +142,10 @@ _install_poetry() {
   step "Installing Poetry to ${DIM}$POETRY_HOME${RESET}..."
   rm -rf "$POETRY_HOME"
   export POETRY_HOME
-  run_cmd "poetry install" curl -sSL https://install.python-poetry.org | python3 -
+  local poetry_log
+  poetry_log="$(curl -sSL https://install.python-poetry.org | python3 - 2>&1)" \
+    && echo "$poetry_log" >> "$BOOTSTRAP_LOG" \
+    || { echo "$poetry_log" >> "$BOOTSTRAP_LOG"; warn "Poetry installer failed — check $BOOTSTRAP_LOG"; return 1; }
   "$POETRY_HOME/bin/poetry" config virtualenvs.in-project true
   ok "$("$POETRY_HOME/bin/poetry" --version)  ${DIM}(virtualenvs.in-project = true)${RESET}"
 }
@@ -152,7 +160,10 @@ _install_uv() {
     return 0
   fi
   step "Installing uv..."
-  run_cmd "uv install" curl -LsSf https://astral.sh/uv/install.sh | sh
+  local uv_log
+  uv_log="$(curl -LsSf https://astral.sh/uv/install.sh | sh 2>&1)" \
+    && echo "$uv_log" >> "$BOOTSTRAP_LOG" \
+    || { echo "$uv_log" >> "$BOOTSTRAP_LOG"; warn "uv installer failed — check $BOOTSTRAP_LOG"; return 1; }
   # Ensure the newly installed binary is in the session PATH
   export PATH="$HOME/.local/bin:$PATH"
   ok "$("$uv_bin" --version)"

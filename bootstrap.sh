@@ -6,13 +6,15 @@
 # then applies dotfiles via chezmoi.
 #
 # Usage:
-#   bash bootstrap.sh                  # install / resume from last state
-#   bash bootstrap.sh --verbose        # show external tool output in terminal
-#   bash bootstrap.sh --clean-install  # wipe all tools + dotfiles, then reinstall
-#   bash bootstrap.sh --clean-tools    # remove dev tools only (keeps shell + dotfiles)
-#   bash bootstrap.sh --reinstall      # full state reset + reinstall from scratch
-#   bash bootstrap.sh --help           # show flag reference
-#   bash bootstrap.sh --help <flag>    # show detail for a specific flag
+#   bash bootstrap.sh                        # install / resume from last state
+#   bash bootstrap.sh --verbose              # show external tool output in terminal
+#   bash bootstrap.sh --clean-install        # wipe all tools + dotfiles, then reinstall
+#   bash bootstrap.sh --clean-tools          # remove dev tools only (keeps shell + dotfiles)
+#   bash bootstrap.sh --reinstall            # full state reset + reinstall from scratch
+#   bash bootstrap.sh --skip-dotfiles        # skip dotfiles section after tool install
+#   bash bootstrap.sh --modules python,node  # run only the specified modules (comma-separated)
+#   bash bootstrap.sh --help                 # show flag reference
+#   bash bootstrap.sh --help <flag>          # show detail for a specific flag
 #
 # On WSL2, automatically invokes setup-windows.ps1 first (non-admin Windows checks).
 # For admin Windows prerequisites, run setup-windows-admin.ps1 manually beforehand.
@@ -30,20 +32,31 @@ CLEAN_INSTALL=false
 CLEAN_TOOLS=false
 REINSTALL=false
 VERBOSE=false
+SKIP_DOTFILES=false
+MODULES_FILTER=""
 HELP_FLAG=false
 HELP_TARGET=""
 
 for arg in "$@"; do
   case "$arg" in
-    --clean-install) CLEAN_INSTALL=true ;;
-    --clean-tools)   CLEAN_TOOLS=true ;;
-    --reinstall)     REINSTALL=true ;;
-    --verbose)       VERBOSE=true ;;
-    --help)          HELP_FLAG=true ;;
-    --help=*)        HELP_FLAG=true; HELP_TARGET="${arg#--help=}" ;;
-    *)               [[ "$HELP_FLAG" == "true" && -z "$HELP_TARGET" ]] && HELP_TARGET="$arg" || true ;;
+    --clean-install)   CLEAN_INSTALL=true ;;
+    --clean-tools)     CLEAN_TOOLS=true ;;
+    --reinstall)       REINSTALL=true ;;
+    --verbose)         VERBOSE=true ;;
+    --skip-dotfiles)   SKIP_DOTFILES=true ;;
+    --modules=*)       MODULES_FILTER="${arg#--modules=}" ;;
+    --modules)         : ;;  # value is consumed by next iteration via shift-less loop; handled below
+    --help)            HELP_FLAG=true ;;
+    --help=*)          HELP_FLAG=true; HELP_TARGET="${arg#--help=}" ;;
+    *)                 if [[ "$HELP_FLAG" == "true" && -z "$HELP_TARGET" ]]; then
+                         HELP_TARGET="$arg"
+                       elif [[ "${_prev_arg:-}" == "--modules" ]]; then
+                         MODULES_FILTER="$arg"
+                       fi ;;
   esac
+  _prev_arg="$arg"
 done
+unset _prev_arg
 export VERBOSE
 
 # ─────────────────────────────────────────────
@@ -56,10 +69,13 @@ _show_help() {
     echo -e ""
     section_header "bootstrap.sh — flag reference"
     echo -e "  ${CYAN}--help${RESET}            This help. ${DIM}--help <flag>${RESET} for detail."
-    echo -e "  ${CYAN}--verbose${RESET}         Show external tool output in terminal (delimited blocks)."
-    echo -e "  ${CYAN}--clean-install${RESET}   Remove all tools + dotfiles + state, then reinstall."
-    echo -e "  ${CYAN}--clean-tools${RESET}     Remove dev tools only. Preserves shell, dotfiles, packages."
-    echo -e "  ${CYAN}--reinstall${RESET}       Full state reset + clean tools + complete reinstall."
+    echo -e "  ${CYAN}--verbose${RESET}              Show external tool output in terminal (delimited blocks)."
+    echo -e "  ${CYAN}--skip-dotfiles${RESET}        Skip the dotfiles section after tool installation."
+    echo -e "  ${CYAN}--modules <list>${RESET}       Run only the specified modules (comma-separated names)."
+    echo -e "                         ${DIM}Names: packages, shell, chezmoi, python, java, node, ai, containers${RESET}"
+    echo -e "  ${CYAN}--clean-install${RESET}        Remove all tools + dotfiles + state, then reinstall."
+    echo -e "  ${CYAN}--clean-tools${RESET}          Remove dev tools only. Preserves shell, dotfiles, packages."
+    echo -e "  ${CYAN}--reinstall${RESET}            Full state reset + clean tools + complete reinstall."
     echo -e ""
     return
   fi
@@ -136,7 +152,11 @@ echo -e "  ${DIM}Platform: ${PLATFORM}  |  Package manager: ${PKG_MANAGER}${RESE
 
 if [[ "$PLATFORM" == "wsl2" ]]; then
   local_ps_script="$BOOTSTRAP_DIR/setup-windows.ps1"
-  if [[ -f "$local_ps_script" ]]; then
+  # WSL interop may be disabled in some distro sessions — test before invoking
+  if ! command -v powershell.exe &>/dev/null || ! powershell.exe -Command "exit 0" &>/dev/null 2>&1; then
+    warn "Windows interop not available — skipping Windows prerequisites check"
+    warn "Run setup-windows.ps1 manually from PowerShell, then re-run bootstrap"
+  elif [[ -f "$local_ps_script" ]]; then
     # Ensure state file exists with correct ownership before PowerShell writes to it
     state_init
     win_script="$(wslpath -w "$local_ps_script")"
@@ -156,6 +176,15 @@ fi
 _run_module() {
   local n="$1" total="$2" module="$3"
   local key="module_$(basename "$module" .sh)"
+  local module_name
+  module_name="$(basename "$module" .sh | sed 's/^[0-9]*_//')"
+
+  # --modules filter: skip modules not in the comma-separated list
+  if [[ -n "$MODULES_FILTER" ]]; then
+    if ! echo ",$MODULES_FILTER," | grep -qi ",${module_name},"; then
+      return 0
+    fi
+  fi
 
   if state_is "$key" "complete"; then
     skip "$(basename "$module") — already complete"
@@ -219,8 +248,12 @@ _run_install
 state_set "phase_tools" "complete"
 success "Tools installed."
 
-_apply_dotfiles        || warn "Dotfiles not applied — check warnings above and re-run: bash bootstrap.sh"
-state_set "phase_dotfiles" "complete"
+if [[ "$SKIP_DOTFILES" == "true" ]]; then
+  skip "Dotfiles (--skip-dotfiles)"
+else
+  _apply_dotfiles        || warn "Dotfiles not applied — check warnings above and re-run: bash bootstrap.sh"
+  state_set "phase_dotfiles" "complete"
+fi
 
 echo ""
 success "Bootstrap complete! Restart your terminal to apply all changes."

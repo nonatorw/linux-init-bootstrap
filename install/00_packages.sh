@@ -129,9 +129,11 @@ install_packages() {
       warn "chsh failed (wrong password or PAM error)"
       printf "  [R]etry / [S]kip (set shell manually later): "
       local choice
-      read -r choice
+      read -r choice </dev/tty
       case "$choice" in
+        [Rr]) ;;
         [Ss]) warn "Skipping — set default shell manually: chsh -s $zsh_path"; break ;;
+        *)    warn "Invalid choice — enter R to retry or S to skip." ;;
       esac
     done
   fi
@@ -163,8 +165,14 @@ _install_gh() {
     dnf)
       step "Adding GitHub CLI dnf repository..."
       if [[ ! -f /etc/yum.repos.d/gh-cli.repo ]]; then
-        sudo dnf install -y 'dnf-command(config-manager)'
-        sudo dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+        # dnf5 (Fedora 41+) changed config-manager syntax: --add-repo was removed.
+        # Use addrepo --from-repofile= instead; fall back to legacy --add-repo for dnf4.
+        if sudo dnf5 config-manager addrepo --from-repofile=https://cli.github.com/packages/rpm/gh-cli.repo 2>/dev/null \
+          || sudo dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo 2>/dev/null; then
+          : # repo added
+        else
+          warn "Failed to add GitHub CLI repo — gh may not install correctly"
+        fi
       fi
       pkg_install gh
       ;;

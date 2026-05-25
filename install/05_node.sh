@@ -57,7 +57,7 @@ _install_nvm() {
     # Manual install via git clone — the NVM-recommended method for non-default
     # directories. Avoids the installer script, which modifies shell profiles and
     # behaves unpredictably with INSTALL_DIR when it detects previous installations.
-    if ! run_cmd "git clone nvm" GIT_CONFIG_NOSYSTEM=1 HOME=/tmp git clone --depth=1 --branch "$latest" -c advice.detachedHead=false https://github.com/nvm-sh/nvm.git "$NVM_DIR"; then
+    if ! run_cmd "git clone nvm" git clone --depth=1 --branch "$latest" -c advice.detachedHead=false https://github.com/nvm-sh/nvm.git "$NVM_DIR"; then
       warn "Failed to clone NVM — check network connectivity"
       return 1
     fi

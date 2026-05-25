@@ -58,7 +58,13 @@ _install_sdkman() {
     # Remove empty directory to prevent false detection by the installer
     [[ -d "$SDKMAN_DIR" && -z "$(ls -A "$SDKMAN_DIR")" ]] && rm -rf "$SDKMAN_DIR"
     export SDKMAN_DIR
-    run_cmd "sdkman install" curl -s "https://get.sdkman.io" | bash
+    # run_cmd cannot wrap curl|bash pipelines — the shell evaluates the pipe
+    # before run_cmd is called, routing curl's stdout to the log file instead of
+    # bash. Invoke directly so the installer script actually reaches bash.
+    local installer_log
+    installer_log="$(curl -s "https://get.sdkman.io" | bash 2>&1)" \
+      && echo "$installer_log" >> "$BOOTSTRAP_LOG" \
+      || { echo "$installer_log" >> "$BOOTSTRAP_LOG"; warn "SDKman installer failed — check $BOOTSTRAP_LOG"; return 1; }
     ok "SDKman installed"
   fi
 

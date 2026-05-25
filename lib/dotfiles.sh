@@ -24,7 +24,15 @@ _resolve_signing_key() {
 
   # 2. Try to read from the SSH agent (1Password via ssh-add / ssh-add.exe)
   local ssh_add_bin="ssh-add"
-  [[ "$PLATFORM" == "wsl2" ]] && ssh_add_bin="ssh-add.exe"
+  if [[ "$PLATFORM" == "wsl2" ]]; then
+    if command -v ssh-add.exe &>/dev/null; then
+      ssh_add_bin="ssh-add.exe"
+    else
+      warn "Windows interop not available — ssh-add.exe not found" >&2
+      warn "Run setup-windows.ps1 from PowerShell to capture the signing key, then re-run bootstrap" >&2
+      return 1
+    fi
+  fi
 
   local -a keys=()
   local key_count=0
@@ -32,7 +40,7 @@ _resolve_signing_key() {
   while true; do
     local raw
     raw="$("$ssh_add_bin" -L 2>/dev/null)" || raw=""
-    mapfile -t keys < <(echo "$raw" | grep -E "^(sk-)?(ssh-|ecdsa-)" || true)
+    mapfile -t keys < <(echo "$raw" | tr -d '\r' | grep -E "^(sk-)?(ssh-|ecdsa-)" || true)
     key_count="${#keys[@]}"
 
     if [[ "$key_count" -gt 0 ]]; then
@@ -50,11 +58,13 @@ _resolve_signing_key() {
     echo "" >&2
     printf "  [R]etry / [C]ancel: " >&2
     local choice
-    read -r choice
+    read -r choice </dev/tty
     if [[ "$choice" =~ ^[Cc] ]]; then
       warn "Cancelled by user — dotfiles not applied" >&2
       warn "Re-run bootstrap after configuring 1Password SSH agent: bash bootstrap.sh" >&2
       return 1
+    elif [[ ! "$choice" =~ ^[Rr] ]]; then
+      warn "Invalid choice — enter R to retry or C to cancel." >&2
     fi
   done
 
@@ -73,7 +83,7 @@ _resolve_signing_key() {
     local sel
     while true; do
       printf "  Enter number (1-%d) or [C]ancel: " "$key_count" >&2
-      read -r sel
+      read -r sel </dev/tty
       if [[ "$sel" =~ ^[Cc] ]]; then
         warn "Cancelled by user — dotfiles not applied" >&2
         warn "Re-run bootstrap after selecting a signing key: bash bootstrap.sh" >&2

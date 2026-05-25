@@ -22,7 +22,7 @@ Write-Host "  → Downloading setup-windows-admin.ps1..." -ForegroundColor Blue
 Invoke-WebRequest "$raw/setup-windows-admin.ps1" -OutFile "$dest\setup-windows-admin.ps1"
 
 Write-Host ""
-powershell.exe -NonInteractive -ExecutionPolicy Bypass -File "$dest\setup-windows.ps1"
+powershell.exe -ExecutionPolicy Bypass -File "$dest\setup-windows.ps1"
 
 Write-Host ""
 Write-Host "  ⚠ Admin script saved to: $dest\setup-windows-admin.ps1" -ForegroundColor Yellow

@@ -9,8 +9,14 @@
 # Summary: remove all tools, managed dotfiles, and the state file; then proceed with reinstall
 # ─────────────────────────────────────────────
 _clean_install() {
-  warn "--clean-install: removing all tools and dotfiles in 5 seconds (Ctrl+C to abort)"
-  for i in 5 4 3 2 1; do printf '%s ' "$i"; sleep 1; done; echo
+  warn "--clean-install: this will permanently remove all tools, dotfiles, and the state file."
+  printf "  Continue? [y/N]: "
+  local confirm
+  read -r confirm </dev/tty
+  if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    warn "Aborted by user"
+    return 0
+  fi
 
   step "Removing tool directories..."
   rm -rf "$HOME/Dev/tools"
@@ -34,12 +40,10 @@ _clean_install() {
 }
 
 # ─────────────────────────────────────────────
-# Summary: remove dev tool directories and tool state entries; preserve shell, dotfiles, and system packages
+# Summary: remove dev tool directories and tool state entries without prompting
+# Called internally by _clean_tools (after confirmation) and _reinstall (after its own confirmation)
 # ─────────────────────────────────────────────
-_clean_tools() {
-  warn "--clean-tools: removing dev tools in 5 seconds (Ctrl+C to abort)"
-  for i in 5 4 3 2 1; do printf '%s ' "$i"; sleep 1; done; echo
-
+_do_clean_tools() {
   step "Removing dev tool directories..."
   rm -rf "$HOME/Dev/tools/python" \
          "$HOME/Dev/tools/node"   \
@@ -68,13 +72,36 @@ _clean_tools() {
 }
 
 # ─────────────────────────────────────────────
-# Summary: run _clean_tools, reset full bootstrap state, then exit to allow full reinstall
+# Summary: confirm with user then remove dev tool directories and tool state entries;
+#          preserves shell, dotfiles, and system packages
+# ─────────────────────────────────────────────
+_clean_tools() {
+  warn "--clean-tools: this will remove all dev tool directories and tool state entries."
+  printf "  Continue? [y/N]: "
+  local confirm
+  read -r confirm </dev/tty
+  if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    warn "Aborted by user"
+    return 0
+  fi
+
+  _do_clean_tools
+}
+
+# ─────────────────────────────────────────────
+# Summary: confirm with user, run _do_clean_tools, reset full bootstrap state, then exit
 # ─────────────────────────────────────────────
 _reinstall() {
-  warn "--reinstall: full state reset + clean tools + complete reinstall"
-  for i in 5 4 3 2 1; do printf '%s ' "$i"; sleep 1; done; echo
+  warn "--reinstall: this will remove all dev tools, reset the full bootstrap state, and trigger a complete reinstall."
+  printf "  Continue? [y/N]: "
+  local confirm
+  read -r confirm </dev/tty
+  if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    warn "Aborted by user"
+    return 0
+  fi
 
-  _clean_tools
+  _do_clean_tools
 
   step "Resetting full bootstrap state..."
   rm -f "$HOME/.bootstrap-state"
