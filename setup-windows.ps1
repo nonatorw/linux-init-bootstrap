@@ -123,11 +123,33 @@ if (Test-Path $pipe) {
 }
 
 # 6. Capture SSH signing keys from 1Password agent → write to bootstrap state
-Write-Step "Capturing SSH keys from 1Password agent..."
 
 # StateFile is passed as a Windows UNC path by bootstrap.sh (wslpath -w).
 # If not provided (manual run), fall back to writing via wsl.exe default distro.
 $stateFileWin = $StateFile
+
+# Skip capture if signing_key already exists in the state file
+if ($stateFileWin -and (Test-Path $stateFileWin)) {
+  $existingKey = (Get-Content -Raw $stateFileWin) -split "`n" |
+                 ForEach-Object { $_.TrimEnd("`r") } |
+                 Where-Object { $_ -match "^signing_key=" } |
+                 Select-Object -First 1
+  if ($existingKey) {
+    Write-Skip "signing_key already in state file — skipping capture"
+    if ($Issues.Count -eq 0) {
+      Write-Ok "All Windows prerequisites satisfied."
+    } else {
+      Write-Warn "Action required before bootstrap will fully work:"
+      foreach ($issue in $Issues) { Write-Warn "  - $issue" }
+      Write-Host ""
+      Write-Info "Admin items: run setup-windows-admin.ps1 from an elevated PowerShell."
+    }
+    Write-Host ""
+    exit 0
+  }
+}
+
+Write-Step "Capturing SSH keys from 1Password agent..."
 
 # ─────────────────────────────────────────────
 # Summary: list public keys from the 1Password SSH agent via ssh-add.exe -L
