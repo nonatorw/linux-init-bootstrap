@@ -161,8 +161,11 @@ if [[ "$PLATFORM" == "wsl2" ]]; then
     state_init
     win_script="$(wslpath -w "$local_ps_script")"
     win_state_file="$(wslpath -w "$STATE_FILE")"
+    ps_extra_args=()
+    # Use /dev/tty to test for an interactive terminal regardless of stdin/stdout redirections (e.g. pipes to tee)
+    { true </dev/tty; } 2>/dev/null || ps_extra_args+=("-NonInteractive")
     powershell.exe -ExecutionPolicy Bypass \
-      -File "$win_script" -StateFile "$win_state_file" || \
+      -File "$win_script" -StateFile "$win_state_file" "${ps_extra_args[@]}" || \
       warn "Windows prerequisites check had issues — see output above"
   else
     warn "setup-windows.ps1 not found — skipping Windows prerequisites check"

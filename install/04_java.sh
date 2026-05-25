@@ -4,16 +4,16 @@
 # Java environment: SDKman, Zulu JDK 25 LTS, Maven, and Gradle.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Capture original env values before overriding paths
 _ORIG_SDKMAN_DIR="${SDKMAN_DIR:-}"
 
-# Always use the paths defined by this script, ignoring external env vars
 SDKMAN_DIR="$HOME/Dev/tools/java/sdkman"
 GRADLE_USER_HOME="$HOME/Dev/tools/java/gradle"
 MAVEN_LOCAL_REPO="$HOME/Dev/tools/java/m2"
 
+_REINSTALL_HINT="To reinstall, run: bash bootstrap.sh --clean-tools"
+
 # ─────────────────────────────────────────────
-# Summary: install SDKman, Zulu JDK 25, Maven, and Gradle; configure local repository paths
+# Summary: install SDKman and optionally JDK, Maven, and Gradle
 # ─────────────────────────────────────────────
 install_java() {
   step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
@@ -21,8 +21,6 @@ install_java() {
 
   _install_sdkman
 
-  # sdk and its internal scripts use optional positional parameters ($3, etc.)
-  # that become unbound in bash with set -u; disable temporarily for all sdk calls
   set +u
   _install_java_lts
   _install_maven
@@ -33,15 +31,9 @@ install_java() {
 }
 
 # ─────────────────────────────────────────────
-# Summary: install SDKman to ~/Dev/tools/java/sdkman; remove non-standard prior installations
+# Summary: install SDKman to ~/Dev/tools/java/sdkman; always installed, no prompt
 # ─────────────────────────────────────────────
 _install_sdkman() {
-  # Remove non-standard installations before installing.
-  # sdk is a shell function — there is no root subcommand. The official mechanism is
-  # the $SDKMAN_DIR env var, set automatically when sourcing sdkman-init.sh.
-  # If bootstrap runs from a session with sdkman already loaded (via .zshrc),
-  # $SDKMAN_DIR will already be in the environment — captured in $_ORIG_SDKMAN_DIR.
-  # Historical default path (~/.sdkman) is also checked.
   local candidates=("$HOME/.sdkman")
   [[ -n "$_ORIG_SDKMAN_DIR" ]] && candidates+=("$_ORIG_SDKMAN_DIR")
   for loc in "${candidates[@]}"; do
@@ -52,15 +44,11 @@ _install_sdkman() {
   done
 
   if [[ -f "$SDKMAN_DIR/bin/sdkman-init.sh" ]]; then
-    skip "SDKman"
+    skip "SDKman  ${DIM}${_REINSTALL_HINT}${RESET}"
   else
     step "Installing SDKman to ${DIM}$SDKMAN_DIR${RESET}..."
-    # Remove empty directory to prevent false detection by the installer
     [[ -d "$SDKMAN_DIR" && -z "$(ls -A "$SDKMAN_DIR")" ]] && rm -rf "$SDKMAN_DIR"
     export SDKMAN_DIR
-    # run_cmd cannot wrap curl|bash pipelines — the shell evaluates the pipe
-    # before run_cmd is called, routing curl's stdout to the log file instead of
-    # bash. Invoke directly so the installer script actually reaches bash.
     local installer_log
     installer_log="$(curl -s "https://get.sdkman.io" | bash 2>&1)" \
       && echo "$installer_log" >> "$BOOTSTRAP_LOG" \
@@ -68,70 +56,97 @@ _install_sdkman() {
     ok "SDKman installed"
   fi
 
-  # Load SDKman into the current session.
-  # sdkman-init.sh uses optional variables (ZSH_VERSION, etc.) that may be unbound
-  # in bash; disable -u temporarily to avoid failure
-  # shellcheck source=/dev/null
   set +u
+  # shellcheck source=/dev/null
   source "$SDKMAN_DIR/bin/sdkman-init.sh"
   set -u
 }
 
 # ─────────────────────────────────────────────
-# Summary: install Zulu JDK 25.0.3.fx via SDKman
+# Summary: install Zulu JDK 25 via SDKman if confirmed by user
+# State key: module_04_java_jdk (complete|skipped)
 # ─────────────────────────────────────────────
 _install_java_lts() {
-  if [[ -d "$SDKMAN_DIR/candidates/java/current" ]]; then
-    skip "Java  ${DIM}($(java --version 2>/dev/null | head -1 || echo 'Zulu 25'))${RESET}"
+  local state_key="module_04_java_jdk"
+
+  if state_is "$state_key" "complete"; then
+    skip "Java $(java --version 2>/dev/null | head -1 || echo 'Zulu 25')  ${DIM}${_REINSTALL_HINT}${RESET}"
     return 0
   fi
+
+  if ! _confirm "Install JDK 25 (Zulu)?"; then
+    warn "JDK skipped"
+    state_set "$state_key" "skipped"
+    return 0
+  fi
+
   step "Installing Java LTS ${DIM}(Zulu 25.0.3.fx via SDKman)${RESET}..."
   sdk install java 25.0.3.fx-zulu
   ok "Java $(java --version 2>/dev/null | head -1)"
+  state_set "$state_key" "complete"
 }
 
 # ─────────────────────────────────────────────
-# Summary: install Maven via SDKman
+# Summary: install Maven via SDKman if confirmed by user
+# State key: module_04_java_maven (complete|skipped)
 # ─────────────────────────────────────────────
 _install_maven() {
-  if [[ -d "$SDKMAN_DIR/candidates/maven/current" ]]; then
-    skip "Maven  ${DIM}($(mvn --version 2>/dev/null | head -1 || echo 'installed'))${RESET}"
+  local state_key="module_04_java_maven"
+
+  if state_is "$state_key" "complete"; then
+    skip "Maven $(mvn --version 2>/dev/null | head -1 || echo 'installed')  ${DIM}${_REINSTALL_HINT}${RESET}"
     return 0
   fi
+
+  if ! _confirm "Install Maven?"; then
+    warn "Maven skipped"
+    state_set "$state_key" "skipped"
+    return 0
+  fi
+
   step "Installing Maven..."
   sdk install maven
   ok "Maven $(mvn --version 2>/dev/null | head -1)"
+  state_set "$state_key" "complete"
 }
 
 # ─────────────────────────────────────────────
-# Summary: install Gradle via SDKman
+# Summary: install Gradle via SDKman if confirmed by user
+# State key: module_04_java_gradle (complete|skipped)
 # ─────────────────────────────────────────────
 _install_gradle() {
-  if [[ -d "$SDKMAN_DIR/candidates/gradle/current" ]]; then
-    skip "Gradle  ${DIM}($(gradle --version 2>/dev/null | grep '^Gradle' || echo 'installed'))${RESET}"
+  local state_key="module_04_java_gradle"
+
+  if state_is "$state_key" "complete"; then
+    skip "Gradle $(gradle --version 2>/dev/null | grep '^Gradle' || echo 'installed')  ${DIM}${_REINSTALL_HINT}${RESET}"
     return 0
   fi
+
+  if ! _confirm "Install Gradle?"; then
+    warn "Gradle skipped"
+    state_set "$state_key" "skipped"
+    return 0
+  fi
+
   step "Installing Gradle..."
   sdk install gradle
   ok "Gradle $(gradle --version 2>/dev/null | grep '^Gradle' || echo 'installed')"
+  state_set "$state_key" "complete"
 }
 
 # ─────────────────────────────────────────────
-# Summary: create GRADLE_USER_HOME directory (path exported by dev_configs.sh)
+# Summary: create GRADLE_USER_HOME directory
 # ─────────────────────────────────────────────
 _configure_gradle() {
   step "Configuring GRADLE_USER_HOME → ${DIM}$GRADLE_USER_HOME${RESET}"
   mkdir -p "$GRADLE_USER_HOME"
-  # GRADLE_USER_HOME is exported via dev_configs.sh — nothing else needed here
 }
 
 # ─────────────────────────────────────────────
-# Summary: create Maven local repository directory (settings.xml deployed by chezmoi)
+# Summary: create Maven local repository directory
 # ─────────────────────────────────────────────
 _configure_maven() {
   step "Configuring Maven local repository → ${DIM}$MAVEN_LOCAL_REPO${RESET}"
   mkdir -p "$MAVEN_LOCAL_REPO"
   mkdir -p "$HOME/.m2"
-  # settings.xml is deployed by chezmoi-dotfiles via chezmoi apply
-  # MAVEN_OPTS with -Dmaven.repo.local is exported via dev_configs.sh
 }

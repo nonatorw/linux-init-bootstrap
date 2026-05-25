@@ -7,7 +7,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 param(
-  [string]$StateFile = ""
+  [string]$StateFile = "",
+  [switch]$NonInteractive
 )
 
 $ErrorActionPreference = "Continue"
@@ -233,21 +234,26 @@ if ($keys.Count -eq 0) {
   }
   Write-Host ""
   $signingKey = $null
-  while ($true) {
-    $sel = Read-Host "  Enter number (1-$($keys.Count)) or [C]ancel"
-    if ($sel -match "^[Cc]") {
-      Write-Warn "Cancelled — bootstrap.sh will prompt interactively"
-      break
-    }
-    $idx = 0
-    if ([int]::TryParse($sel, [ref]$idx)) {
-      $idx = $idx - 1
-      if ($idx -ge 0 -and $idx -lt $keys.Count) {
-        $signingKey = [string]$keys[$idx]
+  if ($NonInteractive) {
+    $signingKey = [string]$keys[0]
+    Write-Ok "Non-interactive mode — auto-selected first SSH signing key"
+  } else {
+    while ($true) {
+      $sel = Read-Host "  Enter number (1-$($keys.Count)) or [C]ancel"
+      if ($sel -match "^[Cc]") {
+        Write-Warn "Cancelled — bootstrap.sh will prompt interactively"
         break
       }
+      $idx = 0
+      if ([int]::TryParse($sel, [ref]$idx)) {
+        $idx = $idx - 1
+        if ($idx -ge 0 -and $idx -lt $keys.Count) {
+          $signingKey = [string]$keys[$idx]
+          break
+        }
+      }
+      Write-Warn "Invalid selection — enter a number between 1 and $($keys.Count), or C to cancel"
     }
-    Write-Warn "Invalid selection — enter a number between 1 and $($keys.Count), or C to cancel"
   }
   if ($signingKey) {
     if (Write-StateKey "signing_key" $signingKey) {

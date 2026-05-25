@@ -49,3 +49,11 @@ state_is() {
 state_unset() {
   sed -i "/^${1}=/d" "$STATE_FILE" 2>/dev/null || true
 }
+
+# ─────────────────────────────────────────────
+# Summary: remove all keys that start with a given prefix from the state file
+# Args:    $1 — key prefix (e.g. "module_03")
+# ─────────────────────────────────────────────
+state_unset_prefix() {
+  sed -i "/^${1}/d" "$STATE_FILE" 2>/dev/null || true
+}

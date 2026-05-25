@@ -1,170 +1,75 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
 # install/03_python.sh
-# Python environment: pyenv, latest stable Python 3.x, Poetry, and uv.
+# Python environment: uv (package manager + Python installer).
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Capture original env values before overriding paths
-# (needed to detect and remove non-standard installations)
-_ORIG_PYENV_ROOT="${PYENV_ROOT:-}"
-_ORIG_POETRY_HOME="${POETRY_HOME:-}"
+UV_INSTALL_DIR="${UV_INSTALL_DIR:-$HOME/Dev/tools/python/uv/bin}"
+UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$HOME/Dev/tools/python/versions}"
 
-# pyenv root must be called BEFORE overwriting PYENV_ROOT — if called after,
-# it only reflects the variable we just set (useless for detection).
-# Without PYENV_ROOT set, pyenv root derives the path from the binary location,
-# covering cases where PYENV_ROOT was not in the environment.
-if command -v pyenv &>/dev/null; then
-  _PYENV_REPORTED_ROOT="$(pyenv root 2>/dev/null || true)"
-else
-  _PYENV_REPORTED_ROOT=""
-fi
-
-# Always use the paths defined by this script, ignoring external env vars
-PYENV_ROOT="$HOME/Dev/tools/python/pyenv"
-POETRY_HOME="$HOME/Dev/tools/python/poetry"
+_REINSTALL_HINT="To reinstall, run: bash bootstrap.sh --clean-tools"
 
 # ─────────────────────────────────────────────
-# Summary: install pyenv, latest stable Python 3.x, Poetry, and uv
+# Summary: install uv and optionally Python LTS
 # ─────────────────────────────────────────────
 install_python() {
   step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
-    "Python" "pyenv · Python 3.x · Poetry · uv"
+    "Python" "uv · Python LTS"
 
-  _install_pyenv
-  _install_python_version
-  _install_poetry
   _install_uv
+  _install_python_lts
 }
 
 # ─────────────────────────────────────────────
-# Summary: clone pyenv to ~/Dev/tools/python/pyenv; remove non-standard prior installations
-# ─────────────────────────────────────────────
-_install_pyenv() {
-  # Remove non-standard installations before installing.
-  # Candidates: historical default (~/.pyenv), original env var (_ORIG_PYENV_ROOT),
-  # and root reported by the binary before PYENV_ROOT was overwritten (_PYENV_REPORTED_ROOT)
-  local candidates=("$HOME/.pyenv")
-  [[ -n "$_ORIG_PYENV_ROOT" ]]      && candidates+=("$_ORIG_PYENV_ROOT")
-  [[ -n "$_PYENV_REPORTED_ROOT" ]]  && candidates+=("$_PYENV_REPORTED_ROOT")
-  for loc in "${candidates[@]}"; do
-    [[ "$loc" != "$PYENV_ROOT" && -d "$loc" ]] && {
-      step "Removing pyenv from non-standard location: $loc..."
-      rm -rf "$loc"
-    }
-  done
-
-  if [[ -d "$PYENV_ROOT/.git" ]]; then
-    skip "pyenv  ${DIM}($(pyenv --version 2>/dev/null || echo 'unknown'))${RESET}"
-  else
-    step "Installing pyenv to ${DIM}$PYENV_ROOT${RESET}..."
-    rm -rf "$PYENV_ROOT"
-    run_cmd "git clone pyenv" git clone https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
-
-    step "  Compiling pyenv native extension..."
-    if [[ -f "$PYENV_ROOT/src/configure" ]]; then
-      ( cd "$PYENV_ROOT" && src/configure && make -C src 2>/dev/null ) || true
-    fi
-    ok "pyenv installed"
-  fi
-
-  _install_pyenv_plugins
-}
-
-# ─────────────────────────────────────────────
-# Summary: clone pyenv-doctor and pyenv-update into the pyenv plugins directory
-# ─────────────────────────────────────────────
-_install_pyenv_plugins() {
-  declare -A pyenv_plugins=(
-    ["pyenv-doctor"]="https://github.com/pyenv/pyenv-doctor"
-    ["pyenv-update"]="https://github.com/pyenv/pyenv-update"
-  )
-
-  for plugin in "${!pyenv_plugins[@]}"; do
-    local plugin_dir="$PYENV_ROOT/plugins/$plugin"
-    if [[ -d "$plugin_dir/.git" ]]; then
-      skip "  $plugin"
-    else
-      [[ -d "$plugin_dir" ]] && rm -rf "$plugin_dir"
-      step "  Installing $plugin..."
-      run_cmd "git clone $plugin" git clone "${pyenv_plugins[$plugin]}" "$plugin_dir"
-      ok "  $plugin"
-    fi
-  done
-}
-
-# ─────────────────────────────────────────────
-# Summary: install the latest stable Python 3.x via pyenv and set it as the global version
-# ─────────────────────────────────────────────
-_install_python_version() {
-  # Export PYENV_ROOT explicitly so subprocesses (pyenv-install, python-build)
-  # inherit the correct path; without export they would default to ~/.pyenv
-  export PYENV_ROOT
-  # Strip Windows-mounted paths (/mnt/c/...) to prevent pyenv-win from
-  # shadowing the Linux pyenv binary when running inside WSL2.
-  PATH="$(echo "$PATH" | tr ':' '\n' | grep -v '^/mnt/[a-z]/' | tr '\n' ':' | sed 's/:$//')"
-  export PATH="$PYENV_ROOT/bin:$PATH"
-  eval "$(pyenv init - bash)"
-
-  # Find the latest stable 3.x version
-  local latest
-  latest=$(pyenv install --list | grep -E "^\s+3\.[0-9]+\.[0-9]+$" | tail -1 | tr -d ' ')
-
-  if pyenv versions --bare | grep -qx "$latest"; then
-    skip "Python $latest"
-  else
-    step "Installing Python $latest ${DIM}(this may take a few minutes)${RESET}..."
-    pyenv install "$latest"
-    ok "Python $latest installed"
-  fi
-
-  pyenv global "$latest"
-  ok "Active Python: $(python --version)"
-}
-
-# ─────────────────────────────────────────────
-# Summary: install Poetry to ~/Dev/tools/python/poetry; remove non-standard prior installations
-# ─────────────────────────────────────────────
-_install_poetry() {
-  # Remove non-standard installations before installing
-  local candidates=("$HOME/.poetry" "$HOME/.local/share/pypoetry")
-  [[ -n "$_ORIG_POETRY_HOME" ]] && candidates+=("$_ORIG_POETRY_HOME")
-  for loc in "${candidates[@]}"; do
-    [[ "$loc" != "$POETRY_HOME" && -d "$loc" ]] && {
-      step "Removing Poetry from non-standard location: $loc..."
-      rm -rf "$loc"
-    }
-  done
-
-  if [[ -f "$POETRY_HOME/bin/poetry" ]]; then
-    skip "$("$POETRY_HOME/bin/poetry" --version)"
-    return 0
-  fi
-  step "Installing Poetry to ${DIM}$POETRY_HOME${RESET}..."
-  rm -rf "$POETRY_HOME"
-  export POETRY_HOME
-  local poetry_log
-  poetry_log="$(curl -sSL https://install.python-poetry.org | python3 - 2>&1)" \
-    && echo "$poetry_log" >> "$BOOTSTRAP_LOG" \
-    || { echo "$poetry_log" >> "$BOOTSTRAP_LOG"; warn "Poetry installer failed — check $BOOTSTRAP_LOG"; return 1; }
-  "$POETRY_HOME/bin/poetry" config virtualenvs.in-project true
-  ok "$("$POETRY_HOME/bin/poetry" --version)  ${DIM}(virtualenvs.in-project = true)${RESET}"
-}
-
-# ─────────────────────────────────────────────
-# Summary: install uv (fast Python package manager) to ~/.local/bin
+# Summary: install uv to ~/Dev/tools/python/uv/bin; always installed, no prompt
 # ─────────────────────────────────────────────
 _install_uv() {
-  local uv_bin="${UV_INSTALL_DIR:-$HOME/.local/bin}/uv"
+  local uv_bin="$UV_INSTALL_DIR/uv"
   if [[ -x "$uv_bin" ]]; then
-    skip "$("$uv_bin" --version)"
+    skip "$("$uv_bin" --version)  ${DIM}${_REINSTALL_HINT}${RESET}"
+    export PATH="$UV_INSTALL_DIR:$PATH"
     return 0
   fi
-  step "Installing uv..."
+  step "Installing uv to ${DIM}$UV_INSTALL_DIR${RESET}..."
+  mkdir -p "$UV_INSTALL_DIR"
   local uv_log
+  export UV_INSTALL_DIR
   uv_log="$(curl -LsSf https://astral.sh/uv/install.sh | sh 2>&1)" \
     && echo "$uv_log" >> "$BOOTSTRAP_LOG" \
     || { echo "$uv_log" >> "$BOOTSTRAP_LOG"; warn "uv installer failed — check $BOOTSTRAP_LOG"; return 1; }
-  # Ensure the newly installed binary is in the session PATH
-  export PATH="$HOME/.local/bin:$PATH"
+  export PATH="$UV_INSTALL_DIR:$PATH"
   ok "$("$uv_bin" --version)"
+}
+
+# ─────────────────────────────────────────────
+# Summary: install Python LTS via uv if confirmed by user
+# State key: module_03_python_lts (complete|skipped)
+# ─────────────────────────────────────────────
+_install_python_lts() {
+  local state_key="module_03_python_lts"
+
+  if state_is "$state_key" "complete"; then
+    local ver
+    ver="$(UV_PYTHON_INSTALL_DIR="$UV_PYTHON_INSTALL_DIR" uv python list --only-installed 2>/dev/null \
+      | grep -E 'cpython-3\.' | head -1 | awk '{print $1}' || echo 'Python LTS')"
+    skip "${ver}  ${DIM}${_REINSTALL_HINT}${RESET}"
+    return 0
+  fi
+
+  if ! _confirm "Install Python LTS?"; then
+    warn "Python LTS skipped"
+    state_set "$state_key" "skipped"
+    return 0
+  fi
+
+  step "Installing Python LTS to ${DIM}$UV_PYTHON_INSTALL_DIR${RESET}..."
+  if ! UV_PYTHON_INSTALL_DIR="$UV_PYTHON_INSTALL_DIR" uv python install; then
+    warn "Python LTS installation failed — check $BOOTSTRAP_LOG"
+    return 1
+  fi
+  local ver
+  ver="$(UV_PYTHON_INSTALL_DIR="$UV_PYTHON_INSTALL_DIR" uv python list --only-installed 2>/dev/null \
+    | grep -E 'cpython-3\.' | head -1 | awk '{print $1}' || echo 'Python LTS')"
+  ok "${ver} installed"
+  state_set "$state_key" "complete"
 }

@@ -149,10 +149,10 @@ See [docs/USAGE.md](docs/USAGE.md) for examples and details on each flag.
 The bootstrap writes progress to `~/.bootstrap-state` (key=value format). If a run is
 interrupted, re-running `bootstrap.sh` will skip modules that already completed.
 
-To reset a single module:
+To reset a single module (example: re-run the Python LTS installation):
 
 ```bash
-sed -i '/^module_03_python=/d' ~/.bootstrap-state
+sed -i '/^module_03/d' ~/.bootstrap-state
 ```
 
 To reset everything:
@@ -168,11 +168,38 @@ bash bootstrap.sh --reinstall
 | `00_packages.sh`   | System upgrade + base packages (curl, git, zsh, eza, bat, jq, etc.) + locale (apt) + gh |
 | `01_shell.sh`      | Oh My Zsh + Powerlevel10k + plugins                                                     |
 | `02_chezmoi.sh`    | [chezmoi](https://www.chezmoi.io/) dotfile manager                                      |
-| `03_python.sh`     | pyenv + Python LTS + Poetry + uv                                                        |
+| `03_python.sh`     | uv + Python LTS                                                                         |
 | `04_java.sh`       | SDKman + Azul Zulu JDK 25 + Maven + Gradle                                              |
 | `05_node.sh`       | NVM + Node.js LTS                                                                       |
 | `06_ai.sh`         | Claude Code + Gemini CLI (gh copilot requires manual post-install steps)                |
 | `07_containers.sh` | Podman                                                                                  |
+
+### Module Dependencies
+
+- `06_ai.sh` requires Node.js. If `--modules ai` is used without Node.js installed, the bootstrap offers to install it via NVM before continuing.
+
+### Tool Confirmation Prompts
+
+Each optional tool within a module has its own confirmation prompt at runtime:
+
+```text
+Install Python LTS? [Y/n]:
+Install JDK 25 (Zulu)? [Y/n]:
+Install Maven? [Y/n]:
+Install Gradle? [Y/n]:
+Install Node.js LTS? [Y/n]:
+Install Claude Code? [Y/n]:
+Install Gemini CLI? [Y/n]:
+```
+
+The package manager for each module (uv, SDKman, NVM) is always installed without prompting. In non-interactive mode (piped input), all prompts default to **Y**.
+
+Declined tools are recorded as `skipped` in `~/.bootstrap-state` and will be prompted again on the next run. To force reinstall, remove the relevant state entries:
+
+```bash
+# Example: re-prompt for all Java tools
+sed -i '/^module_04/d' ~/.bootstrap-state
+```
 
 ## Post-Install Manual Steps
 

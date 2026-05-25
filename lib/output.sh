@@ -92,3 +92,22 @@ skip()    { _log "SKIP    $*";  echo -e "  ${DIM}${GREEN}⊙${RESET}${DIM} alrea
 warn()    { _log "WARN    $*";  echo -e "  ${YELLOW}⚠${RESET} $*"; }
 error()   { _log "ERROR   $*";  echo -e "  ${RED}✖${RESET} $*"; exit 1; }
 success() { _log "SUCCESS $*";  echo -e "\n${GREEN}${BOLD}✔  $*${RESET}"; }
+
+# ─────────────────────────────────────────────
+# Summary: prompt user for Y/n confirmation; returns 0 on Y/Enter, 1 on n
+# In non-interactive mode (no TTY on stdin), defaults to Y without prompting.
+# Args: $1 — prompt text (without the [Y/n] suffix)
+# ─────────────────────────────────────────────
+_confirm() {
+  local prompt="$1"
+  _log "CONFIRM $prompt"
+  if ! { true </dev/tty; } 2>/dev/null; then
+    echo -e "  ${BLUE}→${RESET} ${prompt} ${DIM}[Y/n] — non-interactive, defaulting to Y${RESET}"
+    return 0
+  fi
+  printf "  %s [Y/n]: " "$prompt"
+  local reply
+  read -r reply </dev/tty
+  _log "CONFIRM reply: ${reply:-<enter>}"
+  [[ -z "$reply" || "$reply" =~ ^[Yy] ]]
+}

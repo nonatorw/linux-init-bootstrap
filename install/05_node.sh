@@ -10,15 +10,20 @@ _ORIG_NVM_DIR="${NVM_DIR:-}"
 # Always use the path defined by this script, ignoring external env vars
 NVM_DIR="$HOME/Dev/tools/node/nvm"
 
+_REINSTALL_HINT="To reinstall, run: bash bootstrap.sh --clean-tools"
+
 # ─────────────────────────────────────────────
-# Summary: install NVM and Node.js LTS
+# Summary: install NVM and optionally Node.js LTS
 # ─────────────────────────────────────────────
 install_node() {
   step_header "${_BOOTSTRAP_STEP_N}" "${_BOOTSTRAP_STEP_TOTAL}" \
     "Node.js" "NVM · Node.js LTS"
 
   _install_nvm
+
+  set +u
   _install_node_lts
+  set -u
 }
 
 # ─────────────────────────────────────────────
@@ -43,7 +48,9 @@ _install_nvm() {
   done
 
   if [[ -f "$NVM_DIR/nvm.sh" ]]; then
-    skip "NVM"
+    local nvm_ver
+    nvm_ver="$(grep -m1 '"version"' "$NVM_DIR/package.json" 2>/dev/null | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/' || echo 'installed')"
+    skip "NVM v${nvm_ver}  ${DIM}${_REINSTALL_HINT}${RESET}"
   else
     step "Resolving latest NVM release..."
     local latest
@@ -74,27 +81,32 @@ _install_nvm() {
 }
 
 # ─────────────────────────────────────────────
-# Summary: install Node.js LTS via NVM and set it as the default alias
-# Returns: 0 on success, 1 if install fails
+# Summary: install Node.js LTS via NVM if confirmed by user
+# State key: module_05_node_lts (complete|skipped)
 # ─────────────────────────────────────────────
 _install_node_lts() {
-  set +u
-  if nvm current 2>/dev/null | grep -qv "none\|N/A"; then
-    skip "Node.js $(nvm current)"
-    nvm alias default 'lts/*'
-    set -u
+  local state_key="module_05_node_lts"
+
+  if state_is "$state_key" "complete"; then
+    skip "Node.js $(node --version 2>/dev/null || echo 'LTS')  ${DIM}${_REINSTALL_HINT}${RESET}"
     _symlink_node_to_system
     return 0
   fi
+
+  if ! _confirm "Install Node.js LTS?"; then
+    warn "Node.js LTS skipped"
+    state_set "$state_key" "skipped"
+    return 0
+  fi
+
   step "Installing Node.js LTS..."
   if ! nvm install --lts; then
-    set -u
     warn "Failed to install Node.js LTS"
     return 1
   fi
   nvm alias default 'lts/*'
-  set -u
   ok "Node.js $(node --version)"
+  state_set "$state_key" "complete"
   _symlink_node_to_system
 }
 

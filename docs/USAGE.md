@@ -6,13 +6,15 @@ Flag reference, examples, post-install steps, and troubleshooting. For installat
 
 ## Flags
 
-| Flag               | Description                                                                                    |
-|--------------------|------------------------------------------------------------------------------------------------|
-| `--help`           | Print flag reference. `--help <flag>` expands detail and examples for that flag.               |
-| `--verbose`        | Show external tool output in terminal (delimited blocks) and tee to `~/.linux-init-bootstrap.log`. |
-| `--clean-tools`    | Remove dev tools, symlinks, and tool state entries; run package cleanup. Preserves shell + dotfiles. |
-| `--reinstall`      | Full state reset + clean tools + complete reinstall from scratch.                              |
-| `--clean-install`  | Remove everything (tools, dotfiles, state) and reinstall. Use `--reinstall` to keep dotfiles. |
+| Flag               | Description                                                                                                                              |
+|--------------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| `--help`           | Print flag reference. `--help <flag>` expands detail and examples for that flag.                                                         |
+| `--verbose`        | Show external tool output in terminal (delimited blocks) and tee to `~/.linux-init-bootstrap.log`.                                       |
+| `--skip-dotfiles`  | Skip the dotfiles section after tool installation.                                                                                       |
+| `--modules <list>` | Run only the specified modules (comma-separated). Valid names: `packages`, `shell`, `chezmoi`, `python`, `java`, `node`, `ai`, `containers`. |
+| `--clean-tools`    | Remove dev tools, symlinks, and tool state entries; run package cleanup. Preserves shell + dotfiles.                                     |
+| `--reinstall`      | Full state reset + clean tools + complete reinstall from scratch.                                                                        |
+| `--clean-install`  | Remove everything (tools, dotfiles, state) and reinstall. Use `--reinstall` to keep dotfiles.                                            |
 
 ### `--verbose`
 
@@ -21,6 +23,34 @@ Shows output from external tools (apt, git clone, curl installers) in the termin
 ```bash
 bash bootstrap.sh --verbose
 ```
+
+### `--skip-dotfiles`
+
+Runs all tool modules normally but skips the dotfiles section entirely. Useful when re-running bootstrap after a failed tool install without touching dotfiles.
+
+```bash
+bash bootstrap.sh --skip-dotfiles
+```
+
+### `--modules <list>`
+
+Runs only the specified modules, skipping all others. Takes a comma-separated list of module names.
+
+Valid names: `packages`, `shell`, `chezmoi`, `python`, `java`, `node`, `ai`, `containers`
+
+```bash
+# Install only the AI tools
+bash bootstrap.sh --modules ai
+
+# Install Java and Node together
+bash bootstrap.sh --modules java,node
+
+# Re-run Python after resetting its state
+sed -i '/^module_03/d' ~/.bootstrap-state
+bash bootstrap.sh --modules python
+```
+
+Module dependencies still apply: `--modules ai` will offer to install Node.js first if it is absent.
 
 ### `--clean-tools`
 
@@ -111,6 +141,40 @@ gh copilot --version
 
 ---
 
+## Tool Confirmation Prompts
+
+Each module installs its package manager unconditionally, then prompts individually for each optional tool:
+
+| Module      | Always installed | Prompted per tool            |
+|-------------|------------------|------------------------------|
+| `03_python` | uv               | Python LTS                   |
+| `04_java`   | SDKman           | JDK 25 (Zulu), Maven, Gradle |
+| `05_node`   | NVM              | Node.js LTS                  |
+| `06_ai`     | —                | Claude Code, Gemini CLI      |
+
+Declined tools are recorded as `skipped` and re-prompted on the next run. Tools already installed are shown as `⊙ already installed` with a `--clean-tools` hint.
+
+In non-interactive mode (piped input or no TTY), all prompts default to **Y**.
+
+### Non-interactive mode
+
+The bootstrap detects whether a real terminal is available by probing `/dev/tty`. If no TTY is present (e.g. piped input, CI, or `bash bootstrap.sh < /dev/null`), all confirmation prompts auto-accept with **Y** and the SSH signing-key selection auto-picks the first key returned by the 1Password agent.
+
+This allows unattended runs:
+
+```bash
+# Fully unattended — all prompts accept Y, first SSH key selected automatically
+bash bootstrap.sh < /dev/null
+```
+
+The Windows prerequisite script (`setup-windows.ps1`) receives a `-NonInteractive` flag from `bootstrap.sh` in this case and applies the same auto-selection logic.
+
+## Module Dependencies
+
+`06_ai.sh` requires Node.js. If run via `--modules ai` without Node.js installed, the bootstrap offers to install it via NVM before continuing. If NVM is also absent, the user is directed to run `--modules node` first.
+
+---
+
 ## Troubleshooting
 
 ### A module failed mid-run
@@ -120,8 +184,12 @@ Re-run `bootstrap.sh` — it resumes from the last incomplete module automatical
 ### Reset and re-run a single module
 
 ```bash
-# Example: reset the Python module
-sed -i '/^module_03_python=/d' ~/.bootstrap-state
+# Example: reset all Python state (re-prompts for Python LTS)
+sed -i '/^module_03/d' ~/.bootstrap-state
+bash bootstrap.sh
+
+# Example: reset only the Java tools (re-prompts for JDK, Maven, Gradle)
+sed -i '/^module_04/d' ~/.bootstrap-state
 bash bootstrap.sh
 ```
 

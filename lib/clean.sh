@@ -55,8 +55,8 @@ _do_clean_tools() {
   [[ -L /usr/local/bin/node ]] && sudo rm -f /usr/local/bin/node && ok "/usr/local/bin/node removed" || skip "/usr/local/bin/node symlink not found"
 
   step "Removing tool state entries..."
-  for key in module_03_python module_04_java module_05_node module_06_ai module_07_containers; do
-    state_unset "$key" 2>/dev/null || true
+  for prefix in module_03 module_04 module_05 module_06 module_07; do
+    state_unset_prefix "$prefix"
   done
   ok "Tool state entries removed"
 

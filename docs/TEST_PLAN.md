@@ -4,19 +4,160 @@ Manual test plan for the user input confirmation loops in `install/00_packages.s
 
 Each scenario follows the **Given / When / Then** structure. Unless noted otherwise, execute inside WSL2.
 
+All test logs are stored in `C:\Dev\repos\personal_projects\test_results\`.
+
+---
+
+## Before Test — WSL Instance Provisioning
+
+This section must be executed **every time a new feature branch requires testing**. It creates clean WSL instances with all prerequisites configured. Do not skip any step.
+
+### Log directory
+
+Create the log directory on Windows before starting any test run:
+
+```powershell
+New-Item -ItemType Directory -Force "C:\Dev\repos\personal_projects\test_results"
+```
+
+### Verify repository and branch (Windows — do first)
+
+Before creating any WSL instance, confirm the repository is checked out on the correct feature branch:
+
+```powershell
+cd C:\Dev\repos\personal_projects\linux-init-bootstrap
+git status
+git branch --show-current
+```
+
+Expected: the feature branch under test (e.g. `feature/tool-confirmation-uv-migration`). If not, check out the correct branch before proceeding — the WSL instances mount the Windows filesystem directly at `/mnt/c/`, so the scripts they run are read live from this directory.
+
+### Create Ubuntu instance
+
+```powershell
+wsl --install Ubuntu-26.04 --web-download --name Ubuntu-26-<feature-name>
+```
+
+> Replace `<feature-name>` with a short slug for the feature under test (e.g. `tool-confirm`).
+
+Follow the distro first-run prompts to create user `nonatorw` and set a password. The password set here is used by `sudo` and by `chsh` during bootstrap — choose one you can type reliably.
+
+Open an interactive session:
+
+```powershell
+wsl -d Ubuntu-26-<feature-name>
+```
+
+Verify Windows interop and 1Password agent are accessible:
+
+```bash
+ssh-add.exe -L && echo "1Password agent acessível"
+```
+
+Expected: SSH keys listed and `1Password agent acessível` printed. If no keys appear, ensure 1Password Desktop is running on Windows with SSH agent enabled before proceeding.
+
+Verify that the repository is accessible from WSL:
+
+```bash
+ls /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh && echo OK
+```
+
+Expected: `OK` printed. If the file is not found, the Windows path is wrong or the repository was not cloned.
+
+Verify distro identity:
+
+```bash
+lsb_release -a && echo OK
+```
+
+Expected: Ubuntu version info printed, `OK` on the last line.
+
+### Create Fedora instance
+
+```powershell
+wsl --install FedoraLinux-44 --web-download --name Fedora-44-<feature-name>
+```
+
+Follow the distro first-run prompts to create user `nonatorw`.
+
+Inside the Fedora session, **set the sudo password** (required for any `sudo` call during bootstrap):
+
+```bash
+sudo passwd nonatorw
+```
+
+Enable systemd and configure boot command to keep Windows interop active across sessions (required for `powershell.exe` and `ssh-add.exe` to be reachable from WSL2):
+
+```bash
+sudo bash -c 'cat > /etc/wsl.conf << EOF
+[boot]
+systemd=true
+command = systemctl restart systemd-binfmt.service
+EOF'
+```
+
+Restart the instance to activate systemd:
+
+```powershell
+wsl --shutdown
+wsl -d Fedora-44-<feature-name>
+```
+
+Fix the `audit` services that fail on WSL2 and cause systemd to report `degraded` (they require kernel features unavailable in WSL2):
+
+```bash
+sudo systemctl mask audit-rules.service auditd.service
+```
+
+Restart the instance once more to confirm the masked services and boot command take effect:
+
+```powershell
+wsl --shutdown
+wsl -d Fedora-44-<feature-name>
+```
+
+Verify systemd and interop are fully active:
+
+```bash
+systemctl is-system-running
+ls /proc/sys/fs/binfmt_misc/WSLInterop && echo "interop ativo"
+ssh-add.exe -L && echo "1Password agent acessível"
+```
+
+Expected:
+
+- `systemctl is-system-running` → `running` (not `degraded`)
+- `interop ativo` printed
+- `ssh-add.exe -L` lists SSH keys from 1Password agent
+
+Verify distro identity:
+
+```bash
+cat /etc/fedora-release && echo OK
+```
+
+Expected: Fedora release string printed, `OK` on the last line.
+
+> **Why systemd is required:** Fedora WSL2 does not enable systemd by default. Without it, the Windows interop layer does not activate correctly, which means `powershell.exe` and `ssh-add.exe` are not reachable from within WSL2. The bootstrap relies on `ssh-add.exe` to read SSH keys from the 1Password agent for dotfile signing key resolution.
+>
+> **Why sudo password is required:** Fedora's default WSL2 image may not configure passwordless sudo for the initial user. The bootstrap calls `sudo` during package installation (dnf). Without a password set, those calls hang or fail.
+>
+> **Why audit services must be masked:** `audit-rules.service` and `auditd.service` require kernel audit subsystem features unavailable in WSL2. They fail on every boot, causing systemd to report `degraded` and preventing `systemd-binfmt.service` from registering PE binary execution (Windows interop). Masking them permanently suppresses the failure.
+
 ---
 
 ## Execution Sequence
 
-Tests are executed in five ordered runs. Each run has a fixed environment and scope.
+Tests are executed in six ordered runs. Each run has a fixed environment and scope.
 
-| Run | Environment                  | Distro  | Scope                                                                     |
-| --- | ---------------------------- | ------- | ------------------------------------------------------------------------- |
-| 1   | Create Ubuntu WSL2 image     | Ubuntu  | Provisioning only — no test execution                                     |
-| 2   | Create Fedora WSL2 image     | Fedora  | Provisioning only — no test execution                                     |
-| 3   | Ubuntu — first execution     | Ubuntu  | All phases fresh: Phase 1 (Windows) + Phase 2 + Phase 3; Groups A–E, K, L |
-| 4   | Ubuntu — second execution    | Ubuntu  | State from Run 3 intact; idempotency + clean flags; Groups C, D, E        |
-| 5   | Fedora — first execution     | Fedora  | All phases fresh: Phase 2 + Phase 3; Groups A–E, K                        |
+| Run | Environment | Distro | Scope | Status |
+| --- | ----------- | ------ | ----- | ------ |
+| 1 | Create Ubuntu WSL2 image | Ubuntu | Provisioning only — no test execution | ✔ Done |
+| 2 | Create Fedora WSL2 image | Fedora | Provisioning only — no test execution | ✔ Done |
+| 3 | Ubuntu — first execution | Ubuntu | All phases fresh: Phase 1 (Windows) + Phase 2 + Phase 3; Groups A-E, K, L | ✔ Done |
+| 4 | Ubuntu — second execution | Ubuntu | State from Run 3 intact; idempotency + clean flags; Groups C, D, E | ✔ Done |
+| 5 | Fedora — first execution | Fedora | All phases fresh: Phase 2 + Phase 3; Groups A-E, K | ✔ Done |
+| 6 | Ubuntu — error condition run | Ubuntu | Deliberate error conditions: Groups A, B | ✔ Done |
 
 **Phase 1 (Windows side) runs once** — it is platform-independent and executed during Run 3 only.
 
@@ -24,51 +165,13 @@ Tests are executed in five ordered runs. Each run has a fixed environment and sc
 
 ## Run 1 — Create Ubuntu WSL2 image
 
-```powershell
-wsl --install Ubuntu-26.04 --web-download --name Ubuntu-26-feature-polish-design
-# Follow the distro first-run prompts to create a user and password.
-# When complete, verify:
-wsl -d Ubuntu-26-feature-polish-design -- bash -c "lsb_release -a && echo OK"
-```
-
-Expected: Ubuntu version info printed, `OK` on the last line.
+Follow the **Before Test — Create Ubuntu instance** section above, using name `Ubuntu-26-feature-tool-confirm`.
 
 ---
 
 ## Run 2 — Create Fedora WSL2 image
 
-```powershell
-wsl --install FedoraLinux-44 --web-download --name Fedora-44-feature-polish-design
-# Follow the distro first-run prompts to create a user and password.
-```
-
-Inside the Fedora session, set the user password and enable systemd (required for Windows interop):
-
-```bash
-sudo passwd nonatorw
-
-sudo bash -c 'cat > /etc/wsl.conf << EOF
-[boot]
-systemd=true
-EOF'
-```
-
-Then restart the instance from PowerShell to activate systemd:
-
-```powershell
-wsl --shutdown
-wsl -d Fedora-44-feature-polish-design
-```
-
-Verify:
-
-```bash
-wsl -d Fedora-44-feature-polish-design -- bash -c "cat /etc/fedora-release && echo OK"
-```
-
-Expected: Fedora release string printed, `OK` on the last line.
-
-> **Why systemd is required:** Fedora WSL2 does not enable systemd by default. Without it, the Windows interop layer does not activate correctly, which means `powershell.exe` and `ssh-add.exe` are not reachable from within WSL2. The bootstrap relies on `ssh-add.exe` to read SSH keys from the 1Password agent for dotfile signing key resolution.
+Follow the **Before Test — Create Fedora instance** section above, using name `Fedora-44-feature-tool-confirm`.
 
 ---
 
@@ -76,7 +179,7 @@ Expected: Fedora release string printed, `OK` on the last line.
 
 ### Run 3 pre-conditions
 
-- Ubuntu WSL2 distro created in Run 1 (name used below: `Ubuntu-26-test`)
+- Ubuntu WSL2 distro created in Run 1 (name: `Ubuntu-26-feature-tool-confirm`)
 - No bootstrap state file (`~/.bootstrap-state` does not exist)
 - 1Password Desktop running on Windows with SSH agent enabled
 - At least one SSH key stored as a native SSH Key item in 1Password
@@ -96,25 +199,25 @@ powershell.exe -ExecutionPolicy Bypass -File $tmp
 ### Step 2 — Phase 2 (invoked from PowerShell via wsl)
 
 ```powershell
-wsl -d Ubuntu-26-test -- bash -c "
-  curl -fsSL https://gist.githubusercontent.com/nonatorw/79321dfef85099cdbad1d2f0fda5f959/raw/linux-init-phase2-linux-prereqs.sh | bash
-"
+wsl -d Ubuntu-26-feature-tool-confirm -- bash -c "
+  bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/gist/linux-init-phase2-linux-prereqs.local.sh
+" 2>&1 | Tee-Object "C:\Dev\repos\personal_projects\test_results\ubuntu-run3-phase2.log"
 ```
 
 **Scenarios covered:** K1, K2 (network failure must be simulated separately)
 
 ### Step 3 — Phase 3 (interactive WSL session)
 
-Phase 3 triggers interactive prompts (Groups A, B, C, D, E) that require a TTY. Open an
-interactive WSL session and run the bootstrap directly:
+Phase 3 triggers interactive prompts (Groups A, B, C, D, E) that require a TTY. Open an interactive WSL session and run the bootstrap directly:
 
 ```powershell
-wsl -d Ubuntu-26-test
+wsl -d Ubuntu-26-feature-tool-confirm
 ```
 
 ```bash
 # Inside WSL:
-curl -fsSL https://gist.githubusercontent.com/nonatorw/79321dfef85099cdbad1d2f0fda5f959/raw/linux-init-phase3-bootstrap.sh | bash
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/gist/linux-init-phase3-bootstrap.local.sh --verbose \
+  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run3-phase3.log
 ```
 
 **Scenarios covered:** K4, K6, D3, D4, A1–A6, B1–B9, C1–C9, E1–E2
@@ -140,7 +243,7 @@ Validates idempotency and destructive flag behaviour against an already-installe
 Open an interactive WSL session (prompts require TTY throughout):
 
 ```powershell
-wsl -d Ubuntu-26-test
+wsl -d Ubuntu-26-feature-tool-confirm
 ```
 
 Execute in the order below inside WSL. Each step depends on state left by the previous one.
@@ -148,22 +251,31 @@ Execute in the order below inside WSL. Each step depends on state left by the pr
 leaving the environment unrecoverable for further tests.
 
 ```bash
-# 1. Idempotency — bootstrap skips completed modules (K3, K5)
-bash ~/Dev/repos/linux-init-bootstrap/bootstrap.sh
+# 1. Idempotency — bootstrap skips completed modules
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verbose \
+  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-idempotency.log
 
-# 2. Abort confirmations — enter 'n' at each prompt; verify nothing is removed (C3, C4, C7, C9, E2)
-bash ~/Dev/repos/linux-init-bootstrap/bootstrap.sh --clean-tools
-bash ~/Dev/repos/linux-init-bootstrap/bootstrap.sh --reinstall
+# 2. --clean-tools abort — enter 'n' at prompt; verify nothing is removed
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verbose --clean-tools \
+  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-clean-tools-n.log
 
-# 3. Single-prompt regression — enter 'y'; count prompts (E1)
-bash ~/Dev/repos/linux-init-bootstrap/bootstrap.sh --reinstall
+# 3. --reinstall abort — enter 'n' at prompt; verify nothing is removed
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verbose --reinstall \
+  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-reinstall-n.log
 
-# 4. stdin isolation — invoke via pipe, enter 'y' and 'n' at terminal (D1–D5)
-bash ~/Dev/repos/linux-init-bootstrap/bootstrap.sh --clean-tools
-curl -fsSL <gist-phase3-url> | bash -s -- --clean-tools
+# 4. --reinstall confirm — enter 'y'; clears state and tools
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verbose --reinstall \
+  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-reinstall-y.log
 
-# 5. clean-install — enter 'y'; destroys environment; must be last (C1, C2)
-bash ~/Dev/repos/linux-init-bootstrap/bootstrap.sh --clean-install
+# 5. Non-interactive — stdin redirected; all tools auto-install; signing key auto-selected
+#    Prepare: clear signing_key so Phase 1 must re-capture it
+sed -i '/^signing_key=/d' ~/.bootstrap-state
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verbose < /dev/null \
+  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-non-interactive.log
+
+# 6. --clean-tools confirm — enter 'y'; removes dev tool directories and tool state
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verbose --clean-tools \
+  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-clean-tools-y.log
 ```
 
 ---
@@ -172,17 +284,19 @@ bash ~/Dev/repos/linux-init-bootstrap/bootstrap.sh --clean-install
 
 ### Run 5 pre-conditions
 
-- Fedora WSL2 distro created in Run 2 (name used below: `Fedora-44-test`)
-- No bootstrap state file
+- Fedora WSL2 distro created in Run 2 (name: `Fedora-44-feature-tool-confirm`)
+- No bootstrap state file (`~/.bootstrap-state` does not exist)
+- sudo password set for `nonatorw` (done during Before Test)
+- systemd enabled and active (done during Before Test)
 - Phase 1 already executed in Run 3 (Windows side does not repeat)
 - 1Password SSH agent active (same Windows setup)
 
 ### Step 1 — Phase 2 (invoked from PowerShell via wsl)
 
 ```powershell
-wsl -d Fedora-44-test -- bash -c "
-  curl -fsSL https://gist.githubusercontent.com/nonatorw/79321dfef85099cdbad1d2f0fda5f959/raw/linux-init-phase2-linux-prereqs.sh | bash
-"
+wsl -d Fedora-44-feature-tool-confirm -- bash -c "
+  bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/gist/linux-init-phase2-linux-prereqs.local.sh
+" 2>&1 | Tee-Object "C:\Dev\repos\personal_projects\test_results\fedora-run5-phase2.log"
 ```
 
 **Scenarios covered:** K1 (Fedora / dnf path)
@@ -190,15 +304,100 @@ wsl -d Fedora-44-test -- bash -c "
 ### Step 2 — Phase 3 (interactive WSL session)
 
 ```powershell
-wsl -d Fedora-44-test
+wsl -d Fedora-44-feature-tool-confirm
 ```
 
 ```bash
 # Inside WSL:
-curl -fsSL https://gist.githubusercontent.com/nonatorw/79321dfef85099cdbad1d2f0fda5f959/raw/linux-init-phase3-bootstrap.sh | bash
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/gist/linux-init-phase3-bootstrap.local.sh --verbose \
+  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/fedora-run5-phase3.log
 ```
 
 **Scenarios covered:** K4, D3, D4, A1–A6, B1–B9, C1–C9
+
+---
+
+## Run 6 — Ubuntu: error condition run (Groups A, B)
+
+### Run 6 pre-conditions
+
+- Ubuntu WSL2 distro from Run 3/4 with bootstrap fully installed
+- zsh already set as default shell (so Group A can only be triggered on a fresh distro or after resetting the shell)
+
+### Group A — setup
+
+Group A requires `chsh` to fail. The only reliable way is to use a fresh distro where zsh is not yet the default shell, and deliberately enter the wrong password when `chsh` prompts for it.
+
+Recommended approach: reset the default shell to bash first:
+
+```bash
+# Reset default shell to bash so chsh runs again on next bootstrap
+sudo chsh -s /bin/bash nonatorw
+# Clear packages module state so bootstrap re-runs it (chsh lives in 00_packages.sh)
+sed -i '/^module_00_packages=/d' ~/.bootstrap-state
+```
+
+Then run the bootstrap and deliberately enter the wrong password at the `chsh` PAM prompt to trigger A1–A5:
+
+```bash
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verbose --modules packages \
+  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run6-group-a.log
+```
+
+### Group B — setup
+
+Group B tests the retry loop triggered when `ssh-add.exe -L` returns no keys, and the multi-key selection menu triggered when more than one key is found.
+
+**B1–B5 (no keys):** Disable the SSH agent in 1Password before running.
+
+1. In 1Password → Settings → Developer → uncheck "Use the SSH agent"
+
+2. Confirm it is off:
+
+   ```bash
+   ssh-add.exe -L 2>&1
+   # Expected: "Error connecting to agent: No such file or directory"
+   ```
+
+3. Prepare state:
+
+   ```bash
+   sed -i '/^signing_key=/d' ~/.bootstrap-state
+   sed -i '/^phase_dotfiles=/d' ~/.bootstrap-state
+   rm -f ~/.config/chezmoi/chezmoi.toml
+   ```
+
+4. Run (must use pipe + tee — TTY detection works correctly):
+
+   ```bash
+   bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verbose --skip-tools \
+     2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run6-group-b.log
+   ```
+
+   At `[R]etry / [C]ancel`: enter `r` (B1) → `R` (B2) → `c` (B3). Repeat run for `C` (B4) and invalid input `x` (B5).
+
+**B6–B9 (keys present, multi-key selection):** Re-enable the SSH agent before running.
+
+1. In 1Password → Settings → Developer → check "Use the SSH agent"
+
+2. Confirm keys are visible:
+
+   ```bash
+   ssh-add.exe -L 2>&1
+   # Expected: two ssh-ed25519 keys listed
+   ```
+
+3. Prepare state (disable agent again for B6 retry path, re-enable mid-run):
+
+   ```bash
+   sed -i '/^signing_key=/d' ~/.bootstrap-state
+   sed -i '/^phase_dotfiles=/d' ~/.bootstrap-state
+   rm -f ~/.config/chezmoi/chezmoi.toml
+   ```
+
+   Disable agent again → run bootstrap → at `[R]etry / [C]ancel` re-enable agent then enter `r` (B6) → menu appears → enter `0` (B8 — invalid) → `1` (B7 — valid selection).
+
+4. Repeat run for B9: prepare state, run with agent enabled, at `Enter number (1-2) or [C]ancel` enter `c`.
 
 ---
 
@@ -238,7 +437,7 @@ curl -fsSL https://gist.githubusercontent.com/nonatorw/79321dfef85099cdbad1d2f0f
 | B3 | 1Password SSH agent has no keys loaded | User enters `c`                                         | Warning: `Cancelled by user — dotfiles not applied`; function returns 1; bootstrap continues with a warning |
 | B4 | 1Password SSH agent has no keys loaded | User enters `C`                                         | Same as B3                                                                                                  |
 | B5 | 1Password SSH agent has no keys loaded | User enters any other input (e.g. `x`, empty Enter)     | Warning: `Invalid choice — enter R to retry or C to cancel.`; prompt is shown again                         |
-| B6 | 1Password SSH agent has exactly 1 key  | — (no prompt shown)                                     | Key is selected automatically; message: `SSH signing key detected automatically`; proceeds to chezmoi       |
+| B6 | 1Password SSH agent has exactly 1 key  | — (no prompt shown)                                     | Key is selected automatically; message: `SSH signing key detected automatically`; proceeds to chezmoi. **Not testable in this environment** (agent always exposes 2 keys). |
 | B7 | 1Password SSH agent has N > 1 keys     | User enters a valid number (1 to N)                     | Corresponding key is selected; message: `SSH signing key selected`; proceeds to chezmoi                     |
 | B8 | 1Password SSH agent has N > 1 keys     | User enters a number outside range or non-numeric input | Warning: `Invalid selection — enter a number between 1 and N, or C to cancel`; prompt is shown again        |
 | B9 | 1Password SSH agent has N > 1 keys     | User enters `c` or `C`                                  | Warning: `Cancelled by user — dotfiles not applied`; function returns 1                                     |
@@ -281,15 +480,15 @@ curl -fsSL https://gist.githubusercontent.com/nonatorw/79321dfef85099cdbad1d2f0f
 
 **Context:** When the script is run via `curl ... | bash`, the shell's `stdin` is the pipe, not the terminal. All `read` calls use `</dev/tty` to read directly from the terminal, bypassing the pipe. These scenarios validate that interactive prompts work correctly in both invocation modes.
 
-**Runs:** 3 (D3–D4 via Gist), 4 (D1–D2 direct, D5 CI simulation)
+**Runs:** 3 (D3–D4 via Gist), 4 (D1–D2 direct, D5 non-interactive)
 
-| ID | Given                                                                        | When                                          | Then                                                                       |
-| -- | ---------------------------------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------- |
-| D1 | Script invoked directly: `bash bootstrap.sh --clean-tools`                   | User enters `y` at the prompt                 | Confirmation is read correctly; clean executes                             |
-| D2 | Script invoked directly: `bash bootstrap.sh --clean-tools`                   | User enters `n` at the prompt                 | Abort message shown; nothing removed                                       |
-| D3 | Script invoked via pipe: `curl -fsSL ... \| bash -s -- --clean-tools`        | User enters `y` at the prompt in the terminal | Confirmation is read from `/dev/tty`; clean executes despite pipe on stdin |
-| D4 | Script invoked via pipe: `curl -fsSL ... \| bash -s -- --clean-tools`        | User enters `n` at the prompt                 | Abort message shown; nothing removed                                       |
-| D5 | Script invoked via pipe with no terminal (e.g. CI): `/dev/tty` not available | Prompt is reached                             | Script aborts gracefully (read returns empty → treated as `N`)             |
+| ID | Given                                                                                       | When                                          | Then                                                                                                                                            |
+| -- | ------------------------------------------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1 | Script invoked directly: `bash bootstrap.sh --clean-tools`                                  | User enters `y` at the prompt                 | Confirmation is read correctly; clean executes                                                                                                  |
+| D2 | Script invoked directly: `bash bootstrap.sh --clean-tools`                                  | User enters `n` at the prompt                 | Abort message shown; nothing removed                                                                                                            |
+| D3 | Script invoked via pipe: `curl -fsSL ... \| bash -s -- --clean-tools`                       | User enters `y` at the prompt in the terminal | Confirmation is read from `/dev/tty`; clean executes despite pipe on stdin                                                                      |
+| D4 | Script invoked via pipe: `curl -fsSL ... \| bash -s -- --clean-tools`                       | User enters `n` at the prompt                 | Abort message shown; nothing removed                                                                                                            |
+| D5 | Script invoked with stdin redirected (`< /dev/null`) or via `curl \| bash` with no terminal | Prompt is reached                             | `_confirm` detects `[[ ! -t 0 ]]`, prints `non-interactive, defaulting to Y`, and proceeds without user input — all tools install automatically |
 
 ---
 
