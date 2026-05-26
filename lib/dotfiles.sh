@@ -48,7 +48,7 @@ _resolve_signing_key() {
     fi
 
     warn "No SSH keys found in 1Password agent." >&2
-    if ! { true </dev/tty; } 2>/dev/null; then
+    if [[ "${NON_INTERACTIVE:-false}" == "true" ]] || ! { true </dev/tty; } 2>/dev/null; then
       warn "Non-interactive mode — cannot prompt for retry; dotfiles not applied" >&2
       warn "Re-run bootstrap interactively after configuring 1Password SSH agent" >&2
       return 1
@@ -66,7 +66,7 @@ _resolve_signing_key() {
     read -r choice </dev/tty
     if [[ "$choice" =~ ^[Cc] ]]; then
       warn "Cancelled by user — dotfiles not applied" >&2
-      warn "Re-run bootstrap after configuring 1Password SSH agent: bash bootstrap.sh" >&2
+      warn "Re-run bootstrap after configuring 1Password SSH agent: bash setup/phase3-setup-bootstrap.sh" >&2
       return 1
     elif [[ ! "$choice" =~ ^[Rr] ]]; then
       warn "Invalid choice — enter R to retry or C to cancel." >&2
@@ -85,7 +85,7 @@ _resolve_signing_key() {
       printf "    [%d] %.70s...\n" $(( i+1 )) "${keys[$i]}" >&2
     done
     echo "" >&2
-    if ! { true </dev/tty; } 2>/dev/null; then
+    if [[ "${NON_INTERACTIVE:-false}" == "true" ]] || ! { true </dev/tty; } 2>/dev/null; then
       signing_key="${keys[0]}"
       ok "Non-interactive mode — auto-selected first SSH signing key" >&2
     else
@@ -95,7 +95,7 @@ _resolve_signing_key() {
         read -r sel </dev/tty
         if [[ "$sel" =~ ^[Cc] ]]; then
           warn "Cancelled by user — dotfiles not applied" >&2
-          warn "Re-run bootstrap after selecting a signing key: bash bootstrap.sh" >&2
+          warn "Re-run bootstrap after selecting a signing key: bash setup/phase3-setup-bootstrap.sh" >&2
           return 1
         fi
         if [[ "$sel" =~ ^[0-9]+$ ]] && (( sel >= 1 && sel <= key_count )); then
@@ -163,7 +163,7 @@ _apply_dotfiles() {
   local signing_key
   if ! signing_key="$(_resolve_signing_key)"; then
     warn "SSH signing key not resolved — dotfiles not applied"
-    warn "Fix 1Password SSH agent setup and re-run: bash bootstrap.sh"
+    warn "Fix 1Password SSH agent setup and re-run: bash setup/phase3-setup-bootstrap.sh"
     return 1
   fi
 

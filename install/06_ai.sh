@@ -8,7 +8,7 @@
 CLAUDE_HOME="${CLAUDE_HOME:-$HOME/Dev/tools/ai/claude}"
 GEMINI_HOME="${GEMINI_HOME:-$HOME/Dev/tools/ai/gemini}"
 
-_REINSTALL_HINT="To reinstall, run: bash bootstrap.sh --clean-tools"
+_REINSTALL_HINT="To reinstall, run: bash setup/phase3-setup-bootstrap.sh --clean-tools"
 
 # ─────────────────────────────────────────────
 # Summary: install Claude Code and Gemini CLI (requires Node.js from 05_node.sh)

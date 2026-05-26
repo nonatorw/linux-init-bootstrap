@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
 # Phase 3 — Tool install + dotfiles entry point
-# Clones the full repo (required — bootstrap.sh sources lib/ and install/)
-# then runs bootstrap.sh. All flags are forwarded.
+# Clones the full repo (required — phase3-setup-bootstrap.sh sources lib/ and install/)
+# then runs setup/phase3-setup-bootstrap.sh. All flags are forwarded.
 #
 # Run inside WSL or native Linux:
-#   curl -fsSL https://raw.githubusercontent.com/nonatorw/linux-init-bootstrap/main/gist/phase3-bootstrap.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/nonatorw/linux-init-bootstrap/main/gist/linux-init-phase3-bootstrap.sh | bash
 #   # with flags:
 #   curl -fsSL ... | bash -s -- --verbose
 # ─────────────────────────────────────────────────────────────────────────────
@@ -20,4 +20,4 @@ else
   git clone https://github.com/nonatorw/linux-init-bootstrap.git "$DEST"
 fi
 
-bash "$DEST/bootstrap.sh" "$@"
+bash "$DEST/setup/phase3-setup-bootstrap.sh" "$@"

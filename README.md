@@ -17,14 +17,14 @@ On a native Linux machine, only Phase 3 is needed.
 
 ```console
 # Phase 1 (Windows — WSL2 only): Windows prerequisites
-setup-windows-admin.ps1          # ← run once, elevated PowerShell
-setup-windows.ps1                # ← auto-invoked by bootstrap.sh
+setup/phase1-setup-windows-admin.ps1   # ← run once, elevated PowerShell
+setup/phase1-setup-windows.ps1         # ← auto-invoked by phase3-setup-bootstrap.sh
 
-# Phase 2 (Linux prereqs):       WSL2 + standalone Linux
-setup-prereqs-linux.sh           # ← run before bootstrap.sh
+# Phase 2 (Linux prereqs):            WSL2 + standalone Linux
+setup/phase2-setup-prereqs-linux.sh   # ← run before phase3-setup-bootstrap.sh
 
-# Phase 3 (WSL / Linux):         Tool install + dotfiles
-bootstrap.sh                     # ← main entry point
+# Phase 3 (WSL / Linux):             Tool install + dotfiles
+setup/phase3-setup-bootstrap.sh       # ← main entry point
 ```
 
 ## Quick Start
@@ -36,14 +36,14 @@ All phases are run from PowerShell. Phase 1 is Windows-side; Phases 2 and 3 invo
 ```powershell
 # Phase 1 (Windows side — run once from elevated PowerShell)
 Set-ExecutionPolicy Bypass -Scope Process -Force
-.\setup-windows-admin.ps1
+.\setup\phase1-setup-windows-admin.ps1
 ```
 
 ```powershell
 # Phase 2 — Linux prerequisites (replace Ubuntu-26.04 with your distro name)
 wsl -d Ubuntu-26.04 -- bash -c "
   git clone https://github.com/nonatorw/linux-init-bootstrap.git ~/Dev/repos/linux-init-bootstrap
-  bash ~/Dev/repos/linux-init-bootstrap/setup-prereqs-linux.sh
+  bash ~/Dev/repos/linux-init-bootstrap/setup/phase2-setup-prereqs-linux.sh
 "
 ```
 
@@ -51,7 +51,7 @@ wsl -d Ubuntu-26.04 -- bash -c "
 # Phase 3 — tool install + dotfiles (interactive — opens a WSL session)
 wsl -d Ubuntu-26.04
 # Inside WSL:
-bash ~/Dev/repos/linux-init-bootstrap/bootstrap.sh
+bash ~/Dev/repos/linux-init-bootstrap/setup/phase3-setup-bootstrap.sh
 ```
 
 ### WSL2 — Fedora
@@ -76,7 +76,7 @@ Then proceed with the same steps as Ubuntu (replace the distro name accordingly)
 ```powershell
 wsl -d FedoraLinux-44 -- bash -c "
   git clone https://github.com/nonatorw/linux-init-bootstrap.git ~/Dev/repos/linux-init-bootstrap
-  bash ~/Dev/repos/linux-init-bootstrap/setup-prereqs-linux.sh
+  bash ~/Dev/repos/linux-init-bootstrap/setup/phase2-setup-prereqs-linux.sh
 "
 ```
 
@@ -84,7 +84,7 @@ wsl -d FedoraLinux-44 -- bash -c "
 # Phase 3 — interactive session
 wsl -d FedoraLinux-44
 # Inside WSL:
-bash ~/Dev/repos/linux-init-bootstrap/bootstrap.sh
+bash ~/Dev/repos/linux-init-bootstrap/setup/phase3-setup-bootstrap.sh
 ```
 
 ### Native Linux
@@ -92,8 +92,8 @@ bash ~/Dev/repos/linux-init-bootstrap/bootstrap.sh
 ```bash
 git clone https://github.com/nonatorw/linux-init-bootstrap.git ~/Dev/repos/linux-init-bootstrap
 cd ~/Dev/repos/linux-init-bootstrap
-bash setup-prereqs-linux.sh
-bash bootstrap.sh
+bash setup/phase2-setup-prereqs-linux.sh
+bash setup/phase3-setup-bootstrap.sh
 ```
 
 Restart the terminal when it finishes.
@@ -147,7 +147,7 @@ See [docs/USAGE.md](docs/USAGE.md) for examples and details on each flag.
 ## Resume on Error
 
 The bootstrap writes progress to `~/.bootstrap-state` (key=value format). If a run is
-interrupted, re-running `bootstrap.sh` will skip modules that already completed.
+interrupted, re-running `setup/phase3-setup-bootstrap.sh` will skip modules that already completed.
 
 To reset a single module (example: re-run the Python LTS installation):
 
@@ -158,7 +158,7 @@ sed -i '/^module_03/d' ~/.bootstrap-state
 To reset everything:
 
 ```bash
-bash bootstrap.sh --reinstall
+bash setup/phase3-setup-bootstrap.sh --reinstall
 ```
 
 ## What Phase 3 Installs
@@ -285,7 +285,7 @@ the Windows named pipe — no relay process needed.
 
 #### Prerequisites (Windows — one-time manual steps)
 
-Run `setup-windows-admin.ps1` from an elevated PowerShell, then complete the manual steps:
+Run `setup/phase1-setup-windows-admin.ps1` from an elevated PowerShell, then complete the manual steps:
 
 1. Install [1Password Desktop](https://1password.com/downloads/) and sign in
 2. In 1Password → **Settings → Developer**:
@@ -295,7 +295,7 @@ Run `setup-windows-admin.ps1` from an elevated PowerShell, then complete the man
    import private key file). The key must be of this type — not a generic password item —
    for the agent integration to work.
 
-The `setup-windows-admin.ps1` script handles:
+The `setup/phase1-setup-windows-admin.ps1` script handles:
 
 - Installing the Windows OpenSSH client optional feature (provides `ssh.exe`)
 - Disabling the Windows `ssh-agent` service (1Password manages the agent pipe directly; the native service conflicts)
@@ -316,7 +316,7 @@ ssh -T git@github.com   # should say "Hi <user>! You've successfully authenticat
 - **State tracking** — `~/.bootstrap-state` records each module's result so the bootstrap
   can resume after failure without re-running completed steps.
 - **Single command for Phase 3** — tools, SSH known_hosts, and dotfiles are all handled by
-  one run of `bootstrap.sh`. No manual post-install steps.
+  one run of `setup/phase3-setup-bootstrap.sh`. No manual post-install steps.
 - **HTTPS for bootstrap clones** — all `git clone` calls during the bootstrap use HTTPS or
   `GIT_CONFIG_NOSYSTEM=1 HOME=/tmp` to avoid dependency on SSH signing or agent availability.
 - **SSH known_hosts at runtime** — host keys are fetched via `ssh-keyscan` during the

@@ -1,62 +1,68 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# bootstrap.sh
+# setup/phase3-setup-bootstrap.sh
 # Main orchestrator for Phase 3: development environment setup.
 # Sources lib/ helpers, detects platform, runs install modules in order,
 # then applies dotfiles via chezmoi.
 #
 # Usage:
-#   bash bootstrap.sh                        # install / resume from last state
-#   bash bootstrap.sh --verbose              # show external tool output in terminal
-#   bash bootstrap.sh --clean-install        # wipe all tools + dotfiles, then reinstall
-#   bash bootstrap.sh --clean-tools          # remove dev tools only (keeps shell + dotfiles)
-#   bash bootstrap.sh --reinstall            # full state reset + reinstall from scratch
-#   bash bootstrap.sh --skip-dotfiles        # skip dotfiles section after tool install
-#   bash bootstrap.sh --modules python,node  # run only the specified modules (comma-separated)
-#   bash bootstrap.sh --help                 # show flag reference
-#   bash bootstrap.sh --help <flag>          # show detail for a specific flag
+#   bash setup/phase3-setup-bootstrap.sh                        # install / resume from last state
+#   bash setup/phase3-setup-bootstrap.sh --verbose              # show external tool output in terminal
+#   bash setup/phase3-setup-bootstrap.sh --clean-install        # wipe all tools + dotfiles, then reinstall
+#   bash setup/phase3-setup-bootstrap.sh --clean-tools          # remove dev tools only (keeps shell + dotfiles)
+#   bash setup/phase3-setup-bootstrap.sh --reinstall            # full state reset + reinstall from scratch
+#   bash setup/phase3-setup-bootstrap.sh --skip-dotfiles        # skip dotfiles section after tool install
+#   bash setup/phase3-setup-bootstrap.sh --non-interactive      # suppress all prompts (destructive flags abort; signing key auto-selects first)
+#   bash setup/phase3-setup-bootstrap.sh --modules python,node  # run only the specified modules (comma-separated)
+#   bash setup/phase3-setup-bootstrap.sh --help                 # show flag reference
+#   bash setup/phase3-setup-bootstrap.sh --help <flag>          # show detail for a specific flag
 #
-# On WSL2, automatically invokes setup-windows.ps1 first (non-admin Windows checks).
-# For admin Windows prerequisites, run setup-windows-admin.ps1 manually beforehand.
-# For Linux prerequisites, run setup-prereqs-linux.sh before this script.
+# On WSL2, automatically invokes setup/phase1-setup-windows.ps1 first (non-admin Windows checks).
+# For admin Windows prerequisites, run setup/phase1-setup-windows-admin.ps1 manually beforehand.
+# For Linux prerequisites, run setup/phase2-setup-prereqs-linux.sh before this script.
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
 
 BOOTSTRAP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$BOOTSTRAP_DIR/.." && pwd)"
 
 # Load output helpers (colors and functions)
-source "$BOOTSTRAP_DIR/lib/output.sh"
+source "$REPO_ROOT/lib/output.sh"
 
 CLEAN_INSTALL=false
 CLEAN_TOOLS=false
 REINSTALL=false
 VERBOSE=false
 SKIP_DOTFILES=false
+NON_INTERACTIVE=false
 MODULES_FILTER=""
 HELP_FLAG=false
 HELP_TARGET=""
 
 for arg in "$@"; do
   case "$arg" in
-    --clean-install)   CLEAN_INSTALL=true ;;
-    --clean-tools)     CLEAN_TOOLS=true ;;
-    --reinstall)       REINSTALL=true ;;
-    --verbose)         VERBOSE=true ;;
-    --skip-dotfiles)   SKIP_DOTFILES=true ;;
-    --modules=*)       MODULES_FILTER="${arg#--modules=}" ;;
-    --modules)         : ;;  # value is consumed by next iteration via shift-less loop; handled below
-    --help)            HELP_FLAG=true ;;
-    --help=*)          HELP_FLAG=true; HELP_TARGET="${arg#--help=}" ;;
-    *)                 if [[ "$HELP_FLAG" == "true" && -z "$HELP_TARGET" ]]; then
-                         HELP_TARGET="$arg"
-                       elif [[ "${_prev_arg:-}" == "--modules" ]]; then
-                         MODULES_FILTER="$arg"
-                       fi ;;
+    --clean-install)     CLEAN_INSTALL=true ;;
+    --clean-tools)       CLEAN_TOOLS=true ;;
+    --reinstall)         REINSTALL=true ;;
+    --verbose)           VERBOSE=true ;;
+    --skip-dotfiles)     SKIP_DOTFILES=true ;;
+    --non-interactive)   NON_INTERACTIVE=true ;;
+    --modules=*)         MODULES_FILTER="${arg#--modules=}" ;;
+    --modules)           : ;;  # value is consumed by next iteration via shift-less loop; handled below
+    --help)              HELP_FLAG=true ;;
+    --help=*)            HELP_FLAG=true; HELP_TARGET="${arg#--help=}" ;;
+    *)                   if [[ "$HELP_FLAG" == "true" && -z "$HELP_TARGET" ]]; then
+                           HELP_TARGET="$arg"
+                         elif [[ "${_prev_arg:-}" == "--modules" ]]; then
+                           MODULES_FILTER="$arg"
+                         fi ;;
   esac
   _prev_arg="$arg"
 done
 unset _prev_arg
+
+export NON_INTERACTIVE
 export VERBOSE
 
 # ─────────────────────────────────────────────
@@ -86,7 +92,7 @@ _show_help() {
       echo -e "  Show output from external tools (apt, git clone, curl installers) in the"
       echo -e "  terminal, wrapped in delimited blocks. Always written to log file regardless."
       echo -e ""
-      echo -e "  ${DIM}Example:${RESET}  bash bootstrap.sh --verbose"
+      echo -e "  ${DIM}Example:${RESET}  bash setup/phase3-setup-bootstrap.sh --verbose"
       echo -e "" ;;
     --clean-tools|clean-tools)
       echo -e ""
@@ -95,7 +101,7 @@ _show_help() {
       echo -e "  state entries for modules 03–07; runs apt/dnf/brew cleanup."
       echo -e "  Preserves: Oh My Zsh, Powerlevel10k, plugins, chezmoi dotfiles, system packages."
       echo -e ""
-      echo -e "  ${DIM}Example:${RESET}  bash bootstrap.sh --clean-tools"
+      echo -e "  ${DIM}Example:${RESET}  bash setup/phase3-setup-bootstrap.sh --clean-tools"
       echo -e "" ;;
     --reinstall|reinstall)
       echo -e ""
@@ -103,7 +109,7 @@ _show_help() {
       echo -e "  Equivalent to --clean-tools + full state reset + complete bootstrap run."
       echo -e "  Removes all tool state and re-runs all phases from scratch."
       echo -e ""
-      echo -e "  ${DIM}Example:${RESET}  bash bootstrap.sh --reinstall"
+      echo -e "  ${DIM}Example:${RESET}  bash setup/phase3-setup-bootstrap.sh --reinstall"
       echo -e "" ;;
     --clean-install|clean-install)
       echo -e ""
@@ -111,7 +117,7 @@ _show_help() {
       echo -e "  Removes everything: tools, dotfiles (via chezmoi purge), and state file."
       echo -e "  Then runs a complete reinstall. Use --reinstall to keep dotfiles."
       echo -e ""
-      echo -e "  ${DIM}Example:${RESET}  bash bootstrap.sh --clean-install"
+      echo -e "  ${DIM}Example:${RESET}  bash setup/phase3-setup-bootstrap.sh --clean-install"
       echo -e "" ;;
     *)
       warn "Unknown flag: $target"
@@ -125,14 +131,14 @@ if [[ "$HELP_FLAG" == "true" ]]; then
   exit 0
 fi
 
-source "$BOOTSTRAP_DIR/lib/platform.sh"
-source "$BOOTSTRAP_DIR/lib/state.sh"
-source "$BOOTSTRAP_DIR/lib/ssh.sh"
-source "$BOOTSTRAP_DIR/lib/dotfiles.sh"
+source "$REPO_ROOT/lib/platform.sh"
+source "$REPO_ROOT/lib/state.sh"
+source "$REPO_ROOT/lib/ssh.sh"
+source "$REPO_ROOT/lib/dotfiles.sh"
 detect_platform
 state_init
 
-source "$BOOTSTRAP_DIR/lib/clean.sh"
+source "$REPO_ROOT/lib/clean.sh"
 
 if [[ "$CLEAN_INSTALL" == "true" ]]; then
   _clean_install
@@ -145,30 +151,47 @@ fi
 
 if [[ "$REINSTALL" == "true" ]]; then
   _reinstall
+  exit 0
 fi
 
 section_header "linux-init-bootstrap — Phase 3: tools"
 echo -e "  ${DIM}Platform: ${PLATFORM}  |  Package manager: ${PKG_MANAGER}${RESET}"
 
 if [[ "$PLATFORM" == "wsl2" ]]; then
-  local_ps_script="$BOOTSTRAP_DIR/setup-windows.ps1"
-  # WSL interop may be disabled in some distro sessions — test before invoking
-  if ! command -v powershell.exe &>/dev/null || ! powershell.exe -Command "exit 0" &>/dev/null 2>&1; then
-    warn "Windows interop not available — skipping Windows prerequisites check"
-    warn "Run setup-windows.ps1 manually from PowerShell, then re-run bootstrap"
-  elif [[ -f "$local_ps_script" ]]; then
-    # Ensure state file exists with correct ownership before PowerShell writes to it
-    state_init
-    win_script="$(wslpath -w "$local_ps_script")"
-    win_state_file="$(wslpath -w "$STATE_FILE")"
-    ps_extra_args=()
-    # Use /dev/tty to test for an interactive terminal regardless of stdin/stdout redirections (e.g. pipes to tee)
-    { true </dev/tty; } 2>/dev/null || ps_extra_args+=("-NonInteractive")
-    powershell.exe -ExecutionPolicy Bypass \
-      -File "$win_script" -StateFile "$win_state_file" "${ps_extra_args[@]}" || \
-      warn "Windows prerequisites check had issues — see output above"
+  if state_is "phase_windows" "complete"; then
+    skip "phase1-setup-windows.ps1 — already complete"
   else
-    warn "setup-windows.ps1 not found — skipping Windows prerequisites check"
+    local_ps_script="$BOOTSTRAP_DIR/phase1-setup-windows.ps1"
+    # WSL interop may be disabled in some distro sessions — test before invoking
+    if ! command -v powershell.exe &>/dev/null || ! powershell.exe -Command "exit 0" &>/dev/null 2>&1; then
+      warn "Windows interop not available — skipping Windows prerequisites check"
+      warn "Run setup/phase1-setup-windows.ps1 manually from PowerShell, then re-run bootstrap"
+    elif [[ -f "$local_ps_script" ]]; then
+      # Ensure state file exists with correct ownership before PowerShell writes to it
+      state_init
+      win_script="$(wslpath -w "$local_ps_script")"
+      win_state_file="$(wslpath -w "$STATE_FILE")"
+      ps_extra_args=()
+      # Use /dev/tty to test for an interactive terminal regardless of stdin/stdout redirections (e.g. pipes to tee)
+      [[ "${NON_INTERACTIVE:-false}" == "true" ]] || { true </dev/tty; } 2>/dev/null || ps_extra_args+=("-NonInteractive")
+      if powershell.exe -ExecutionPolicy Bypass \
+          -File "$win_script" -StateFile "$win_state_file" "${ps_extra_args[@]}"; then
+        # Flush WSL2 9P page cache so the PS1-written state file is visible immediately.
+        # Without this, grep in state_get reads a stale cached version and misses signing_key.
+        sleep 1
+        # Normalise signing_key to Linux line endings: PS1 writes CRLF via UNC path;
+        # state_get strips \r, state_set re-writes with native \n.
+        _ps_signing_key="$(state_get "signing_key" || true)"
+        if [[ -n "$_ps_signing_key" ]]; then
+          state_set "signing_key" "$_ps_signing_key"
+        fi
+        state_set "phase_windows" "complete"
+      else
+        warn "Windows prerequisites check had issues — see output above"
+      fi
+    else
+      warn "setup/phase1-setup-windows.ps1 not found — skipping Windows prerequisites check"
+    fi
   fi
 fi
 
@@ -226,14 +249,14 @@ _run_install() {
            "$HOME/Dev/repos"
 
   local modules=(
-    "$BOOTSTRAP_DIR/install/00_packages.sh"
-    "$BOOTSTRAP_DIR/install/01_shell.sh"
-    "$BOOTSTRAP_DIR/install/02_chezmoi.sh"
-    "$BOOTSTRAP_DIR/install/03_python.sh"
-    "$BOOTSTRAP_DIR/install/04_java.sh"
-    "$BOOTSTRAP_DIR/install/05_node.sh"
-    "$BOOTSTRAP_DIR/install/06_ai.sh"
-    "$BOOTSTRAP_DIR/install/07_containers.sh"
+    "$REPO_ROOT/install/00_packages.sh"
+    "$REPO_ROOT/install/01_shell.sh"
+    "$REPO_ROOT/install/02_chezmoi.sh"
+    "$REPO_ROOT/install/03_python.sh"
+    "$REPO_ROOT/install/04_java.sh"
+    "$REPO_ROOT/install/05_node.sh"
+    "$REPO_ROOT/install/06_ai.sh"
+    "$REPO_ROOT/install/07_containers.sh"
   )
   local total="${#modules[@]}"
   local n=0
@@ -254,7 +277,7 @@ success "Tools installed."
 if [[ "$SKIP_DOTFILES" == "true" ]]; then
   skip "Dotfiles (--skip-dotfiles)"
 else
-  _apply_dotfiles        || warn "Dotfiles not applied — check warnings above and re-run: bash bootstrap.sh"
+  _apply_dotfiles        || warn "Dotfiles not applied — check warnings above and re-run: bash setup/phase3-setup-bootstrap.sh"
   state_set "phase_dotfiles" "complete"
 fi
 

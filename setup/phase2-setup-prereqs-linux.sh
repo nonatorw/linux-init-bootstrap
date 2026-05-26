@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# setup-prereqs-linux.sh — Phase 2: Linux prerequisites
-# Run before bootstrap.sh on any Linux system (WSL2 or standalone).
+# setup/phase2-setup-prereqs-linux.sh — Phase 2: Linux prerequisites
+# Run before phase3-setup-bootstrap.sh on any Linux system (WSL2 or standalone).
 # Installs the minimal packages required by the main bootstrap (curl, git).
 # Standalone — does not source lib/.
 #
 # Usage:
-#   bash setup-prereqs-linux.sh
+#   bash setup/phase2-setup-prereqs-linux.sh
 #   # restart if instructed, then:
-#   bash bootstrap.sh
+#   bash setup/phase3-setup-bootstrap.sh
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -112,7 +112,7 @@ _install_wsl_prereqs() {
 # ─────────────────────────────────────────────
 _check_wsl_restart() {
   if [[ -f /var/run/reboot-required ]]; then
-    warn "A WSL restart is recommended before running bootstrap.sh"
+    warn "A WSL restart is recommended before running setup/phase3-setup-bootstrap.sh"
     warn "Run: wsl --shutdown  (from Windows PowerShell), then reopen WSL"
     return 0
   fi
@@ -133,5 +133,5 @@ else
 fi
 
 echo ""
-success "Linux prerequisites ready. Run: bash bootstrap.sh"
+success "Linux prerequisites ready. Run: bash setup/phase3-setup-bootstrap.sh"
 echo ""

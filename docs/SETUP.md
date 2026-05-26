@@ -12,7 +12,7 @@ Run once from an **elevated PowerShell** (right-click → Run as Administrator):
 
 ```powershell
 Set-ExecutionPolicy Bypass -Scope Process -Force
-.\setup-windows-admin.ps1
+.\setup\phase1-setup-windows-admin.ps1
 ```
 
 Then complete the manual steps:
@@ -31,7 +31,7 @@ Open a WSL terminal and run:
 ```bash
 git clone https://github.com/nonatorw/linux-init-bootstrap.git ~/Dev/repos/linux-init-bootstrap
 cd ~/Dev/repos/linux-init-bootstrap
-bash setup-prereqs-linux.sh
+bash setup/phase2-setup-prereqs-linux.sh
 ```
 
 Restart WSL if instructed (`wsl --shutdown` from Windows PowerShell, then reopen).
@@ -40,7 +40,7 @@ Restart WSL if instructed (`wsl --shutdown` from Windows PowerShell, then reopen
 
 ```bash
 cd ~/Dev/repos/linux-init-bootstrap
-bash bootstrap.sh
+bash setup/phase3-setup-bootstrap.sh
 ```
 
 Restart the terminal when it finishes.
@@ -54,7 +54,7 @@ Only Phase 3 is needed.
 ```bash
 git clone https://github.com/nonatorw/linux-init-bootstrap.git ~/Dev/repos/linux-init-bootstrap
 cd ~/Dev/repos/linux-init-bootstrap
-bash bootstrap.sh
+bash setup/phase3-setup-bootstrap.sh
 ```
 
 Restart the terminal when it finishes.
@@ -93,10 +93,10 @@ curl -fsSL https://gist.githubusercontent.com/nonatorw/79321dfef85099cdbad1d2f0f
 
 | Module             | What it installs                                                                         |
 |--------------------|------------------------------------------------------------------------------------------|
-| `00_packages.sh`   | System upgrade + base packages (curl, git, zsh, eza, bat, jq, etc.) + locale (apt) + gh |
+| `00_packages.sh`   | System upgrade + base packages (curl, git, zsh, eza, bat, jq, etc.) + locale (apt) + gh  |
 | `01_shell.sh`      | Oh My Zsh + Powerlevel10k + plugins                                                      |
 | `02_chezmoi.sh`    | [chezmoi](https://www.chezmoi.io/) dotfile manager                                       |
-| `03_python.sh`     | pyenv + Python LTS + Poetry + uv                                                         |
+| `03_python.sh`     | uv + Python LTS                                                                          |
 | `04_java.sh`       | SDKman + Azul Zulu JDK 25 + Maven + Gradle                                               |
 | `05_node.sh`       | NVM + Node.js LTS                                                                        |
 | `06_ai.sh`         | Claude Code + Gemini CLI                                                                 |
@@ -112,13 +112,13 @@ After the modules run, the bootstrap also:
 
 ## Resuming After Failure
 
-The bootstrap writes progress to `~/.bootstrap-state`. If a run is interrupted, re-running `bootstrap.sh` skips completed modules automatically.
+The bootstrap writes progress to `~/.bootstrap-state`. If a run is interrupted, re-running `setup/phase3-setup-bootstrap.sh` skips completed modules automatically.
 
 To reset a single module and re-run it:
 
 ```bash
 sed -i '/^module_03_python=/d' ~/.bootstrap-state
-bash bootstrap.sh
+bash setup/phase3-setup-bootstrap.sh
 ```
 
 See [USAGE.md](USAGE.md) for full flag reference including `--reinstall` and `--clean-tools`.

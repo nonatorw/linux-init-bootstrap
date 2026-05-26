@@ -6,22 +6,22 @@ Flag reference, examples, post-install steps, and troubleshooting. For installat
 
 ## Flags
 
-| Flag               | Description                                                                                                                              |
-|--------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| `--help`           | Print flag reference. `--help <flag>` expands detail and examples for that flag.                                                         |
-| `--verbose`        | Show external tool output in terminal (delimited blocks) and tee to `~/.linux-init-bootstrap.log`.                                       |
-| `--skip-dotfiles`  | Skip the dotfiles section after tool installation.                                                                                       |
+| Flag               | Description                                                                                                                                  |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--help`           | Print flag reference. `--help <flag>` expands detail and examples for that flag.                                                             |
+| `--verbose`        | Show external tool output in terminal (delimited blocks) and tee to `~/.linux-init-bootstrap.log`.                                           |
+| `--skip-dotfiles`  | Skip the dotfiles section after tool installation.                                                                                           |
 | `--modules <list>` | Run only the specified modules (comma-separated). Valid names: `packages`, `shell`, `chezmoi`, `python`, `java`, `node`, `ai`, `containers`. |
-| `--clean-tools`    | Remove dev tools, symlinks, and tool state entries; run package cleanup. Preserves shell + dotfiles.                                     |
-| `--reinstall`      | Full state reset + clean tools + complete reinstall from scratch.                                                                        |
-| `--clean-install`  | Remove everything (tools, dotfiles, state) and reinstall. Use `--reinstall` to keep dotfiles.                                            |
+| `--clean-tools`    | Remove dev tools, symlinks, and tool state entries; run package cleanup. Preserves shell + dotfiles.                                         |
+| `--reinstall`      | Full state reset + clean tools + complete reinstall from scratch.                                                                            |
+| `--clean-install`  | Remove everything (tools, dotfiles, state) and reinstall. Use `--reinstall` to keep dotfiles.                                                |
 
 ### `--verbose`
 
 Shows output from external tools (apt, git clone, curl installers) in the terminal, wrapped in delimited blocks. Output is always written to the log file regardless.
 
 ```bash
-bash bootstrap.sh --verbose
+bash setup/phase3-setup-bootstrap.sh --verbose
 ```
 
 ### `--skip-dotfiles`
@@ -29,7 +29,7 @@ bash bootstrap.sh --verbose
 Runs all tool modules normally but skips the dotfiles section entirely. Useful when re-running bootstrap after a failed tool install without touching dotfiles.
 
 ```bash
-bash bootstrap.sh --skip-dotfiles
+bash setup/phase3-setup-bootstrap.sh --skip-dotfiles
 ```
 
 ### `--modules <list>`
@@ -40,14 +40,14 @@ Valid names: `packages`, `shell`, `chezmoi`, `python`, `java`, `node`, `ai`, `co
 
 ```bash
 # Install only the AI tools
-bash bootstrap.sh --modules ai
+bash setup/phase3-setup-bootstrap.sh --modules ai
 
 # Install Java and Node together
-bash bootstrap.sh --modules java,node
+bash setup/phase3-setup-bootstrap.sh --modules java,node
 
 # Re-run Python after resetting its state
 sed -i '/^module_03/d' ~/.bootstrap-state
-bash bootstrap.sh --modules python
+bash setup/phase3-setup-bootstrap.sh --modules python
 ```
 
 Module dependencies still apply: `--modules ai` will offer to install Node.js first if it is absent.
@@ -57,6 +57,7 @@ Module dependencies still apply: `--modules ai` will offer to install Node.js fi
 Removes dev tool directories and tool state entries; preserves shell configuration and dotfiles.
 
 **Removes:**
+
 - `~/Dev/tools/python/`, `~/Dev/tools/node/`, `~/Dev/tools/java/`, `~/Dev/tools/ai/`
 - `/usr/local/bin/node` symlink
 - State entries for modules `03_python` through `07_containers`
@@ -65,7 +66,7 @@ Removes dev tool directories and tool state entries; preserves shell configurati
 **Preserves:** Oh My Zsh, Powerlevel10k, plugins, chezmoi dotfiles, system packages.
 
 ```bash
-bash bootstrap.sh --clean-tools
+bash setup/phase3-setup-bootstrap.sh --clean-tools
 ```
 
 ### `--reinstall`
@@ -73,7 +74,7 @@ bash bootstrap.sh --clean-tools
 Equivalent to `--clean-tools` plus a full bootstrap run from scratch. Removes all state and re-runs all phases.
 
 ```bash
-bash bootstrap.sh --reinstall
+bash setup/phase3-setup-bootstrap.sh --reinstall
 ```
 
 ### `--clean-install`
@@ -81,7 +82,7 @@ bash bootstrap.sh --reinstall
 Removes everything — tools, managed dotfiles (via `chezmoi purge`), and the state file — then reinstalls. Use `--reinstall` if you want to keep your dotfiles.
 
 ```bash
-bash bootstrap.sh --clean-install
+bash setup/phase3-setup-bootstrap.sh --clean-install
 ```
 
 ---
@@ -146,7 +147,7 @@ gh copilot --version
 Each module installs its package manager unconditionally, then prompts individually for each optional tool:
 
 | Module      | Always installed | Prompted per tool            |
-|-------------|------------------|------------------------------|
+| ----------- | ---------------- | ---------------------------- |
 | `03_python` | uv               | Python LTS                   |
 | `04_java`   | SDKman           | JDK 25 (Zulu), Maven, Gradle |
 | `05_node`   | NVM              | Node.js LTS                  |
@@ -158,16 +159,16 @@ In non-interactive mode (piped input or no TTY), all prompts default to **Y**.
 
 ### Non-interactive mode
 
-The bootstrap detects whether a real terminal is available by probing `/dev/tty`. If no TTY is present (e.g. piped input, CI, or `bash bootstrap.sh < /dev/null`), all confirmation prompts auto-accept with **Y** and the SSH signing-key selection auto-picks the first key returned by the 1Password agent.
+The bootstrap detects whether a real terminal is available by probing `/dev/tty`. If no TTY is present (e.g. piped input, CI, or `bash setup/phase3-setup-bootstrap.sh < /dev/null`), all confirmation prompts auto-accept with **Y** and the SSH signing-key selection auto-picks the first key returned by the 1Password agent.
 
 This allows unattended runs:
 
 ```bash
 # Fully unattended — all prompts accept Y, first SSH key selected automatically
-bash bootstrap.sh < /dev/null
+bash setup/phase3-setup-bootstrap.sh < /dev/null
 ```
 
-The Windows prerequisite script (`setup-windows.ps1`) receives a `-NonInteractive` flag from `bootstrap.sh` in this case and applies the same auto-selection logic.
+The Windows prerequisite script (`setup/phase1-setup-windows.ps1`) receives a `-NonInteractive` flag from `bootstrap.sh` in this case and applies the same auto-selection logic.
 
 ## Module Dependencies
 
@@ -186,23 +187,23 @@ Re-run `bootstrap.sh` — it resumes from the last incomplete module automatical
 ```bash
 # Example: reset all Python state (re-prompts for Python LTS)
 sed -i '/^module_03/d' ~/.bootstrap-state
-bash bootstrap.sh
+bash setup/phase3-setup-bootstrap.sh
 
 # Example: reset only the Java tools (re-prompts for JDK, Maven, Gradle)
 sed -i '/^module_04/d' ~/.bootstrap-state
-bash bootstrap.sh
+bash setup/phase3-setup-bootstrap.sh
 ```
 
 ### Full reset (keep dotfiles)
 
 ```bash
-bash bootstrap.sh --reinstall
+bash setup/phase3-setup-bootstrap.sh --reinstall
 ```
 
 ### Full reset (remove dotfiles too)
 
 ```bash
-bash bootstrap.sh --clean-install
+bash setup/phase3-setup-bootstrap.sh --clean-install
 ```
 
 ### SSH known_hosts setup had issues
@@ -218,7 +219,7 @@ ssh-keyscan -H bitbucket.org >> ~/.ssh/known_hosts
 Re-run the bootstrap — it will retry the dotfiles step:
 
 ```bash
-bash bootstrap.sh
+bash setup/phase3-setup-bootstrap.sh
 ```
 
 Check the log for details:

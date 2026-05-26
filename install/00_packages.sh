@@ -20,6 +20,8 @@ install_packages() {
   if [[ "$PKG_MANAGER" == "apt" ]]; then
     step "Updating apt package index..."
     run_cmd "apt update" sudo apt update -y
+    step "Upgrading system packages..."
+    run_cmd "apt dist-upgrade" sudo apt dist-upgrade -y
     step "Installing build dependencies and base tools..."
     pkg_install build-essential  \
                 curl             \
@@ -127,6 +129,10 @@ install_packages() {
         break
       fi
       warn "chsh failed (wrong password or PAM error)"
+      if [[ "${NON_INTERACTIVE:-false}" == "true" ]] || ! { true </dev/tty; } 2>/dev/null; then
+        warn "Non-interactive mode — skipping chsh; set default shell manually: chsh -s $zsh_path"
+        break
+      fi
       printf "  [R]etry / [S]kip (set shell manually later): "
       local choice
       read -r choice </dev/tty

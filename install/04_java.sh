@@ -10,7 +10,7 @@ SDKMAN_DIR="$HOME/Dev/tools/java/sdkman"
 GRADLE_USER_HOME="$HOME/Dev/tools/java/gradle"
 MAVEN_LOCAL_REPO="$HOME/Dev/tools/java/m2"
 
-_REINSTALL_HINT="To reinstall, run: bash bootstrap.sh --clean-tools"
+_REINSTALL_HINT="To reinstall, run: bash setup/phase3-setup-bootstrap.sh --clean-tools"
 
 # ─────────────────────────────────────────────
 # Summary: install SDKman and optionally JDK, Maven, and Gradle

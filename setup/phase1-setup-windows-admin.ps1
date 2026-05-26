@@ -1,8 +1,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# setup-windows-admin.ps1 — Phase 1: Windows prerequisites (admin)
-# Run ONCE from an elevated PowerShell before bootstrap.sh.
+# setup/phase1-setup-windows-admin.ps1 — Phase 1: Windows prerequisites (admin)
+# Run ONCE from an elevated PowerShell before setup/phase3-setup-bootstrap.sh.
 #   Set-ExecutionPolicy Bypass -Scope Process -Force
-#   .\setup-windows-admin.ps1
+#   .\setup\phase1-setup-windows-admin.ps1
 # Enables OpenSSH client feature (ssh.exe) and disables the Windows ssh-agent
 # service — 1Password manages the SSH agent pipe directly; the native service
 # conflicts.
@@ -81,6 +81,6 @@ Write-Info "       - Enable 'Use the SSH agent'"
 Write-Info "       - Enable 'Integrate with 1Password CLI'"
 Write-Info "  2. Ensure your SSH key is stored as a native SSH Key item in 1Password"
 Write-Info "       (New Item -> SSH Key -> import private key file)"
-Write-Info "  3. Run setup-windows.ps1 to verify all prerequisites are met"
-Write-Info "  4. Open WSL and run: bash bootstrap.sh"
+Write-Info "  3. Run setup/phase1-setup-windows.ps1 to verify all prerequisites are met"
+Write-Info "  4. Open WSL and run: bash setup/phase3-setup-bootstrap.sh"
 Write-Host ""

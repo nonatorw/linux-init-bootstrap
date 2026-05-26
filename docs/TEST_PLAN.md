@@ -42,24 +42,36 @@ wsl --install Ubuntu-26.04 --web-download --name Ubuntu-26-<feature-name>
 
 Follow the distro first-run prompts to create user `nonatorw` and set a password. The password set here is used by `sudo` and by `chsh` during bootstrap — choose one you can type reliably.
 
-Open an interactive session:
+Enable systemd and configure boot command to keep Windows interop active across sessions (required for `powershell.exe` and `ssh-add.exe` to be reachable from WSL2):
+
+```bash
+sudo bash -c 'cat > /etc/wsl.conf << EOF
+[boot]
+systemd=true
+command = systemctl restart systemd-binfmt.service
+EOF'
+```
+
+Restart the instance to activate systemd:
 
 ```powershell
+wsl --shutdown
 wsl -d Ubuntu-26-<feature-name>
 ```
 
-Verify Windows interop and 1Password agent are accessible:
+Verify systemd and interop are fully active:
 
 ```bash
+ls /proc/sys/fs/binfmt_misc/WSLInterop && echo "interop ativo"
 ssh-add.exe -L && echo "1Password agent acessível"
 ```
 
-Expected: SSH keys listed and `1Password agent acessível` printed. If no keys appear, ensure 1Password Desktop is running on Windows with SSH agent enabled before proceeding.
+Expected: `interop ativo` printed, SSH keys listed. If no keys appear, ensure 1Password Desktop is running on Windows with SSH agent enabled before proceeding.
 
 Verify that the repository is accessible from WSL:
 
 ```bash
-ls /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh && echo OK
+ls /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/setup/phase3-setup-bootstrap.sh && echo OK
 ```
 
 Expected: `OK` printed. If the file is not found, the Windows path is wrong or the repository was not cloned.
@@ -71,6 +83,8 @@ lsb_release -a && echo OK
 ```
 
 Expected: Ubuntu version info printed, `OK` on the last line.
+
+> **Why systemd is required:** Ubuntu WSL2 does not enable systemd by default. Without it, the Windows interop binfmt_misc entries are not registered, which means `powershell.exe` and `ssh-add.exe` fail with "Exec format error" even though the interop socket (`WSL_INTEROP`) is present. The bootstrap relies on `powershell.exe` to run Phase 1 Windows prerequisites and on `ssh-add.exe` to read SSH keys from the 1Password agent.
 
 ### Create Fedora instance
 
@@ -150,14 +164,14 @@ Expected: Fedora release string printed, `OK` on the last line.
 
 Tests are executed in six ordered runs. Each run has a fixed environment and scope.
 
-| Run | Environment | Distro | Scope | Status |
-| --- | ----------- | ------ | ----- | ------ |
-| 1 | Create Ubuntu WSL2 image | Ubuntu | Provisioning only — no test execution | ✔ Done |
-| 2 | Create Fedora WSL2 image | Fedora | Provisioning only — no test execution | ✔ Done |
-| 3 | Ubuntu — first execution | Ubuntu | All phases fresh: Phase 1 (Windows) + Phase 2 + Phase 3; Groups A-E, K, L | ✔ Done |
-| 4 | Ubuntu — second execution | Ubuntu | State from Run 3 intact; idempotency + clean flags; Groups C, D, E | ✔ Done |
-| 5 | Fedora — first execution | Fedora | All phases fresh: Phase 2 + Phase 3; Groups A-E, K | ✔ Done |
-| 6 | Ubuntu — error condition run | Ubuntu | Deliberate error conditions: Groups A, B | ✔ Done |
+| Run | Environment                  | Distro | Scope                                                                     | Status |
+|:---:| ---------------------------- | ------ | ------------------------------------------------------------------------- | ------ |
+|  1  | Create Ubuntu WSL2 image     | Ubuntu | Provisioning only — no test execution                                     | ✔ Done |
+|  2  | Create Fedora WSL2 image     | Fedora | Provisioning only — no test execution                                     | ✔ Done |
+|  3  | Ubuntu — first execution     | Ubuntu | All phases fresh: Phase 1 (Windows) + Phase 2 + Phase 3; Groups A-E, K, L | ✔ Done |
+|  4  | Ubuntu — second execution    | Ubuntu | State from Run 3 intact; idempotency + clean flags; Groups C, D, E        | ✔ Done |
+|  5  | Fedora — first execution     | Fedora | All phases fresh: Phase 2 + Phase 3; Groups A-E, K                        | ✔ Done |
+|  6  | Ubuntu — error condition run | Ubuntu | Deliberate error conditions: Groups A, B                                  | ✔ Done |
 
 **Phase 1 (Windows side) runs once** — it is platform-independent and executed during Run 3 only.
 
@@ -196,12 +210,14 @@ powershell.exe -ExecutionPolicy Bypass -File $tmp
 
 **Scenarios covered:** L1–L10 (see Group L below)
 
-### Step 2 — Phase 2 (invoked from PowerShell via wsl)
+### Step 2 — Phase 2 (interactive WSL session)
 
-```powershell
-wsl -d Ubuntu-26-feature-tool-confirm -- bash -c "
-  bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/gist/linux-init-phase2-linux-prereqs.local.sh
-" 2>&1 | Tee-Object "C:\Dev\repos\personal_projects\test_results\ubuntu-run3-phase2.log"
+Phase 2 runs `sudo apt update` / `sudo dnf check-update` which requires a visible password
+prompt — piping breaks it. Run directly in the interactive terminal and copy the log after.
+
+```bash
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/gist/linux-init-local-phase2-linux-prereqs.sh
+cp ~/.linux-init-bootstrap.log /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run3-phase2.log
 ```
 
 **Scenarios covered:** K1, K2 (network failure must be simulated separately)
@@ -214,10 +230,13 @@ Phase 3 triggers interactive prompts (Groups A, B, C, D, E) that require a TTY. 
 wsl -d Ubuntu-26-feature-tool-confirm
 ```
 
+Phase 3 must run directly in the interactive terminal — piping breaks Windows interop
+(`powershell.exe`, `ssh-add.exe`). The bootstrap writes its own log to `~/.linux-init-bootstrap.log`.
+Copy it after the run completes.
+
 ```bash
-# Inside WSL:
-bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/gist/linux-init-phase3-bootstrap.local.sh --verbose \
-  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run3-phase3.log
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/gist/linux-init-local-phase3-linux-bootstrap.sh --verbose
+cp ~/.linux-init-bootstrap.log /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run3-phase3.log
 ```
 
 **Scenarios covered:** K4, K6, D3, D4, A1–A6, B1–B9, C1–C9, E1–E2
@@ -250,32 +269,44 @@ Execute in the order below inside WSL. Each step depends on state left by the pr
 `--clean-install` is last because it destroys `~/Dev/tools`, `~/.bootstrap-state`, and dotfiles,
 leaving the environment unrecoverable for further tests.
 
+Each sub-run must execute directly in the interactive terminal. Copy the log after each run
+before starting the next — the log file is overwritten on each execution.
+
 ```bash
 # 1. Idempotency — bootstrap skips completed modules
-bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verbose \
-  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-idempotency.log
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/setup/phase3-setup-bootstrap.sh --verbose
+cp ~/.linux-init-bootstrap.log /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-idempotency.log
 
 # 2. --clean-tools abort — enter 'n' at prompt; verify nothing is removed
-bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verbose --clean-tools \
-  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-clean-tools-n.log
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/setup/phase3-setup-bootstrap.sh --verbose --clean-tools
+cp ~/.linux-init-bootstrap.log /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-clean-tools-n.log
 
 # 3. --reinstall abort — enter 'n' at prompt; verify nothing is removed
-bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verbose --reinstall \
-  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-reinstall-n.log
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/setup/phase3-setup-bootstrap.sh --verbose --reinstall
+cp ~/.linux-init-bootstrap.log /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-reinstall-n.log
 
 # 4. --reinstall confirm — enter 'y'; clears state and tools
-bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verbose --reinstall \
-  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-reinstall-y.log
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/setup/phase3-setup-bootstrap.sh --verbose --reinstall
+cp ~/.linux-init-bootstrap.log /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-reinstall-y.log
 
-# 5. Non-interactive — stdin redirected; all tools auto-install; signing key auto-selected
-#    Prepare: clear signing_key so Phase 1 must re-capture it
-sed -i '/^signing_key=/d' ~/.bootstrap-state
-bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verbose < /dev/null \
-  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-non-interactive.log
+# 5. Non-interactive — signing_key e chezmoi.toml removidos; PS1 re-captura e auto-seleciona primeiro key
+#    Remove chezmoi.toml too — otherwise _resolve_signing_key is never called (toml already exists path)
+sed -i '/^signing_key=/d; /^phase_windows=/d' ~/.bootstrap-state
+rm -f ~/.config/chezmoi/chezmoi.toml
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/setup/phase3-setup-bootstrap.sh --verbose --non-interactive
+cp ~/.linux-init-bootstrap.log /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-non-interactive.log
+
+# 5b. Non-interactive + --clean-tools — must abort without prompting
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/setup/phase3-setup-bootstrap.sh --verbose --non-interactive --clean-tools
+cp ~/.linux-init-bootstrap.log /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-non-interactive-clean-tools.log
+
+# 5c. Non-interactive + --reinstall — must abort without prompting
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/setup/phase3-setup-bootstrap.sh --verbose --non-interactive --reinstall
+cp ~/.linux-init-bootstrap.log /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-non-interactive-reinstall.log
 
 # 6. --clean-tools confirm — enter 'y'; removes dev tool directories and tool state
-bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verbose --clean-tools \
-  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-clean-tools-y.log
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/setup/phase3-setup-bootstrap.sh --verbose --clean-tools
+cp ~/.linux-init-bootstrap.log /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run4-clean-tools-y.log
 ```
 
 ---
@@ -291,12 +322,15 @@ bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verb
 - Phase 1 already executed in Run 3 (Windows side does not repeat)
 - 1Password SSH agent active (same Windows setup)
 
-### Step 1 — Phase 2 (invoked from PowerShell via wsl)
+### Step 1 — Phase 2 (interactive WSL session)
 
 ```powershell
-wsl -d Fedora-44-feature-tool-confirm -- bash -c "
-  bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/gist/linux-init-phase2-linux-prereqs.local.sh
-" 2>&1 | Tee-Object "C:\Dev\repos\personal_projects\test_results\fedora-run5-phase2.log"
+wsl -d Fedora-44-feature-tool-confirm
+```
+
+```bash
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/gist/linux-init-local-phase2-linux-prereqs.sh
+cp ~/.linux-init-bootstrap.log /mnt/c/Dev/repos/personal_projects/test_results/fedora-run5-phase2.log
 ```
 
 **Scenarios covered:** K1 (Fedora / dnf path)
@@ -308,9 +342,8 @@ wsl -d Fedora-44-feature-tool-confirm
 ```
 
 ```bash
-# Inside WSL:
-bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/gist/linux-init-phase3-bootstrap.local.sh --verbose \
-  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/fedora-run5-phase3.log
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/gist/linux-init-local-phase3-linux-bootstrap.sh --verbose
+cp ~/.linux-init-bootstrap.log /mnt/c/Dev/repos/personal_projects/test_results/fedora-run5-phase3.log
 ```
 
 **Scenarios covered:** K4, D3, D4, A1–A6, B1–B9, C1–C9
@@ -340,8 +373,8 @@ sed -i '/^module_00_packages=/d' ~/.bootstrap-state
 Then run the bootstrap and deliberately enter the wrong password at the `chsh` PAM prompt to trigger A1–A5:
 
 ```bash
-bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verbose --modules packages \
-  2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run6-group-a.log
+bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/setup/phase3-setup-bootstrap.sh --verbose --modules packages
+cp ~/.linux-init-bootstrap.log /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run6-group-a.log
 ```
 
 ### Group B — setup
@@ -367,11 +400,11 @@ Group B tests the retry loop triggered when `ssh-add.exe -L` returns no keys, an
    rm -f ~/.config/chezmoi/chezmoi.toml
    ```
 
-4. Run (must use pipe + tee — TTY detection works correctly):
+4. Run directly in the interactive terminal:
 
    ```bash
-   bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/bootstrap.sh --verbose --skip-tools \
-     2>&1 | tee /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run6-group-b.log
+   bash /mnt/c/Dev/repos/personal_projects/linux-init-bootstrap/setup/phase3-setup-bootstrap.sh --verbose --skip-dotfiles
+   cp ~/.linux-init-bootstrap.log /mnt/c/Dev/repos/personal_projects/test_results/ubuntu-run6-group-b.log
    ```
 
    At `[R]etry / [C]ancel`: enter `r` (B1) → `R` (B2) → `c` (B3). Repeat run for `C` (B4) and invalid input `x` (B5).
@@ -398,6 +431,21 @@ Group B tests the retry loop triggered when `ssh-add.exe -L` returns no keys, an
    Disable agent again → run bootstrap → at `[R]etry / [C]ancel` re-enable agent then enter `r` (B6) → menu appears → enter `0` (B8 — invalid) → `1` (B7 — valid selection).
 
 4. Repeat run for B9: prepare state, run with agent enabled, at `Enter number (1-2) or [C]ancel` enter `c`.
+
+---
+
+## Group P0 — `install/00_packages.sh`: apt dist-upgrade
+
+**Context:** On Debian/Ubuntu systems, `apt dist-upgrade` runs after `apt update` and before
+package installation to fully update the system (resolves dependency graph — adds/removes
+packages as needed). The `dnf` path already performs `dnf5 upgrade -y` equivalently.
+**Location:** `install/00_packages.sh`
+**Runs:** 3 (Ubuntu, covered implicitly); observable in log.
+
+| ID   | Given                                 | When                    | Then                                                                                            |
+| :--: | ------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------- |
+| P0-1 | Ubuntu/apt; packages upgradable       | `install_packages` runs | Log shows `STEP Upgrading system packages...` followed by `run_cmd: apt dist-upgrade`; no error |
+| P0-2 | Ubuntu/apt; system already up to date | `install_packages` runs | `apt dist-upgrade` exits 0; step completes; `OK Base packages installed` shown                  |
 
 ---
 
@@ -430,17 +478,17 @@ Group B tests the retry loop triggered when `ssh-add.exe -L` returns no keys, an
 
 **Runs:** 3, 5
 
-| ID | Given                                  | When                                                    | Then                                                                                                        |
-| -- | -------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| B1 | 1Password SSH agent has no keys loaded | User enters `r`                                         | Loop continues; `ssh-add -L` is called again; no error message about invalid input                          |
-| B2 | 1Password SSH agent has no keys loaded | User enters `R`                                         | Same as B1                                                                                                  |
-| B3 | 1Password SSH agent has no keys loaded | User enters `c`                                         | Warning: `Cancelled by user — dotfiles not applied`; function returns 1; bootstrap continues with a warning |
-| B4 | 1Password SSH agent has no keys loaded | User enters `C`                                         | Same as B3                                                                                                  |
-| B5 | 1Password SSH agent has no keys loaded | User enters any other input (e.g. `x`, empty Enter)     | Warning: `Invalid choice — enter R to retry or C to cancel.`; prompt is shown again                         |
+| ID | Given                                  | When                                                    | Then                                                                                                                                                                       |
+| -- | -------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1 | 1Password SSH agent has no keys loaded | User enters `r`                                         | Loop continues; `ssh-add -L` is called again; no error message about invalid input                                                                                         |
+| B2 | 1Password SSH agent has no keys loaded | User enters `R`                                         | Same as B1                                                                                                                                                                 |
+| B3 | 1Password SSH agent has no keys loaded | User enters `c`                                         | Warning: `Cancelled by user — dotfiles not applied`; function returns 1; bootstrap continues with a warning                                                                |
+| B4 | 1Password SSH agent has no keys loaded | User enters `C`                                         | Same as B3                                                                                                                                                                 |
+| B5 | 1Password SSH agent has no keys loaded | User enters any other input (e.g. `x`, empty Enter)     | Warning: `Invalid choice — enter R to retry or C to cancel.`; prompt is shown again                                                                                        |
 | B6 | 1Password SSH agent has exactly 1 key  | — (no prompt shown)                                     | Key is selected automatically; message: `SSH signing key detected automatically`; proceeds to chezmoi. **Not testable in this environment** (agent always exposes 2 keys). |
-| B7 | 1Password SSH agent has N > 1 keys     | User enters a valid number (1 to N)                     | Corresponding key is selected; message: `SSH signing key selected`; proceeds to chezmoi                     |
-| B8 | 1Password SSH agent has N > 1 keys     | User enters a number outside range or non-numeric input | Warning: `Invalid selection — enter a number between 1 and N, or C to cancel`; prompt is shown again        |
-| B9 | 1Password SSH agent has N > 1 keys     | User enters `c` or `C`                                  | Warning: `Cancelled by user — dotfiles not applied`; function returns 1                                     |
+| B7 | 1Password SSH agent has N > 1 keys     | User enters a valid number (1 to N)                     | Corresponding key is selected; message: `SSH signing key selected`; proceeds to chezmoi                                                                                    |
+| B8 | 1Password SSH agent has N > 1 keys     | User enters a number outside range or non-numeric input | Warning: `Invalid selection — enter a number between 1 and N, or C to cancel`; prompt is shown again                                                                       |
+| B9 | 1Password SSH agent has N > 1 keys     | User enters `c` or `C`                                  | Warning: `Cancelled by user — dotfiles not applied`; function returns 1                                                                                                    |
 
 ---
 
@@ -488,7 +536,26 @@ Group B tests the retry loop triggered when `ssh-add.exe -L` returns no keys, an
 | D2 | Script invoked directly: `bash bootstrap.sh --clean-tools`                                  | User enters `n` at the prompt                 | Abort message shown; nothing removed                                                                                                            |
 | D3 | Script invoked via pipe: `curl -fsSL ... \| bash -s -- --clean-tools`                       | User enters `y` at the prompt in the terminal | Confirmation is read from `/dev/tty`; clean executes despite pipe on stdin                                                                      |
 | D4 | Script invoked via pipe: `curl -fsSL ... \| bash -s -- --clean-tools`                       | User enters `n` at the prompt                 | Abort message shown; nothing removed                                                                                                            |
-| D5 | Script invoked with stdin redirected (`< /dev/null`) or via `curl \| bash` with no terminal | Prompt is reached                             | `_confirm` detects `[[ ! -t 0 ]]`, prints `non-interactive, defaulting to Y`, and proceeds without user input — all tools install automatically |
+| D5 | Script invoked with stdin redirected (`< /dev/null`) or via `curl \| bash` with no terminal | Prompt is reached                             | `_confirm` detects no `/dev/tty`, prints `non-interactive, defaulting to Y`, and proceeds without user input — all tools install automatically  |
+
+---
+
+## Group NI — `--non-interactive` flag
+
+**Context:** `--non-interactive` suppresses all interactive prompts. Destructive flags (`--clean-install`, `--clean-tools`, `--reinstall`) abort immediately — they require explicit confirmation and are unsafe to auto-confirm. The SSH signing key auto-selects the first available key. The `_confirm()` helper and the `chsh` retry loop also respect the flag.
+
+**Location:** `setup/phase3-setup-bootstrap.sh`, `lib/clean.sh`, `lib/dotfiles.sh`, `lib/output.sh`, `install/00_packages.sh`
+
+**Runs:** 4 (NI1–NI5), 6 (NI6)
+
+| ID  | Given                                                        | When                                | Then                                                                                                                    |
+| --- | ------------------------------------------------------------ | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| NI1 | State complete, `signing_key` present in state               | `--non-interactive`                 | All modules skipped; no prompts shown; exits with `Bootstrap complete`                                                  |
+| NI2 | `signing_key` removed from state; 1Password agent has N keys | `--non-interactive`                 | PS1 invoked with `-NonInteractive`; first key auto-selected; `signing_key` written to state; no selection prompt shown  |
+| NI3 | Any state                                                    | `--non-interactive --clean-tools`   | Warning: `Non-interactive mode — --clean-tools requires explicit confirmation; aborting`; nothing removed               |
+| NI4 | Any state                                                    | `--non-interactive --reinstall`     | Warning: `Non-interactive mode — --reinstall requires explicit confirmation; aborting`; nothing removed                 |
+| NI5 | Any state                                                    | `--non-interactive --clean-install` | Warning: `Non-interactive mode — --clean-install requires explicit confirmation; aborting`; nothing removed             |
+| NI6 | 1Password agent disabled; `signing_key` absent from state    | `--non-interactive --skip-dotfiles` | Warning: `Non-interactive mode — cannot prompt for retry; dotfiles not applied`; bootstrap continues without dotfiles   |
 
 ---
 

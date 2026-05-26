@@ -1,9 +1,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# setup-windows.ps1 — Phase 1: Windows prerequisites (non-admin)
-# Auto-invoked by bootstrap.sh on WSL2. Can also be run manually from PowerShell:
-#   powershell.exe -ExecutionPolicy Bypass -File setup-windows.ps1
+# setup/phase1-setup-windows.ps1 — Phase 1: Windows prerequisites (non-admin)
+# Auto-invoked by setup/phase3-setup-bootstrap.sh on WSL2. Can also be run manually:
+#   powershell.exe -ExecutionPolicy Bypass -File setup\phase1-setup-windows.ps1
 # Does NOT require elevation. For admin prerequisites (ssh-agent), run
-# setup-windows-admin.ps1 manually.
+# setup/phase1-setup-windows-admin.ps1 manually.
 # ─────────────────────────────────────────────────────────────────────────────
 
 param(
@@ -73,7 +73,7 @@ if ($sshExe) {
   Write-Ok "ssh.exe: $($sshExe.Source)"
 } else {
   Write-Warn "ssh.exe not found — run setup-windows-admin.ps1 (as Administrator) to enable it"
-  $Issues += "ssh.exe missing (requires admin — see setup-windows-admin.ps1)"
+  $Issues += "ssh.exe missing (requires admin — see setup/phase1-setup-windows-admin.ps1)"
 }
 
 # 3. ssh-agent service — must be disabled; 1Password manages the agent pipe
@@ -86,7 +86,7 @@ if (-not $sshAgent) {
 } else {
   Write-Warn "ssh-agent service is active — it may conflict with 1Password SSH agent"
   Write-Warn "Run setup-windows-admin.ps1 (as Administrator) to disable it"
-  $Issues += "ssh-agent service active (requires admin — see setup-windows-admin.ps1)"
+  $Issues += "ssh-agent service active (requires admin — see setup/phase1-setup-windows-admin.ps1)"
 }
 
 # 4. 1Password Desktop
@@ -143,7 +143,7 @@ if ($stateFileWin -and (Test-Path $stateFileWin)) {
       Write-Warn "Action required before bootstrap will fully work:"
       foreach ($issue in $Issues) { Write-Warn "  - $issue" }
       Write-Host ""
-      Write-Info "Admin items: run setup-windows-admin.ps1 from an elevated PowerShell."
+      Write-Info "Admin items: run setup/phase1-setup-windows-admin.ps1 from an elevated PowerShell."
     }
     Write-Host ""
     exit 0
@@ -186,7 +186,7 @@ while ($attempt -lt $maxRetries) {
 
   $choice = Read-Host "  [R]etry / [C]ancel"
   if ($choice -notmatch "^[Rr]") {
-    Write-Warn "Skipping SSH key capture — run bootstrap.sh to retry interactively"
+    Write-Warn "Skipping SSH key capture — run setup/phase3-setup-bootstrap.sh to retry interactively"
     break
   }
 }
@@ -198,20 +198,19 @@ while ($attempt -lt $maxRetries) {
 function Write-StateKey {
   param([string]$Key, [string]$Value)
   if (-not $stateFileWin) {
-    Write-Warn "StateFile path not provided — signing_key not persisted (bootstrap.sh will prompt)"
+    Write-Warn "StateFile path not provided — signing_key not persisted (setup/phase3-setup-bootstrap.sh will prompt)"
     return $false
   }
   if (-not (Test-Path $stateFileWin)) {
-    Write-Warn "State file does not exist — signing_key not persisted (bootstrap.sh will prompt)"
+    Write-Warn "State file does not exist — signing_key not persisted (setup/phase3-setup-bootstrap.sh will prompt)"
     return $false
   }
-  # Read existing lines (split by newline to avoid char-array issue), filter key, append new entry
-  $existing = (Get-Content -Raw $stateFileWin) -split "`n" |
-              ForEach-Object { $_.TrimEnd("`r") } |
-              Where-Object { $_ -notmatch "^${Key}=" -and $_ -ne "" }
-  $existing += "${Key}=${Value}"
-  # Write without BOM — preserves Linux file ownership set by bootstrap.sh
-  [System.IO.File]::WriteAllLines($stateFileWin, $existing, [System.Text.UTF8Encoding]::new($false))
+  # Append key=value with a LF terminator directly — avoids reading the file via the 9P
+  # filesystem layer (WSL2 9P cache can cause stale reads of bash-written content).
+  # The caller guarantees the key does not already exist (duplicate check at the top of the script).
+  $line = [System.Text.Encoding]::UTF8.GetBytes("${Key}=${Value}`n")
+  $fs = [System.IO.File]::Open($stateFileWin, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write)
+  try { $fs.Write($line, 0, $line.Length) } finally { $fs.Close() }
   return $true
 }
 
@@ -271,7 +270,7 @@ if ($Issues.Count -eq 0) {
     Write-Warn "  - $issue"
   }
   Write-Host ""
-  Write-Info "Admin items: run setup-windows-admin.ps1 from an elevated PowerShell."
+  Write-Info "Admin items: run setup/phase1-setup-windows-admin.ps1 from an elevated PowerShell."
 }
 Write-Host ""
 

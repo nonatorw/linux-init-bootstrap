@@ -10,7 +10,7 @@ _ORIG_NVM_DIR="${NVM_DIR:-}"
 # Always use the path defined by this script, ignoring external env vars
 NVM_DIR="$HOME/Dev/tools/node/nvm"
 
-_REINSTALL_HINT="To reinstall, run: bash bootstrap.sh --clean-tools"
+_REINSTALL_HINT="To reinstall, run: bash setup/phase3-setup-bootstrap.sh --clean-tools"
 
 # ─────────────────────────────────────────────
 # Summary: install NVM and optionally Node.js LTS

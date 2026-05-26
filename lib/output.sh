@@ -2,7 +2,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # lib/output.sh
 # Colour definitions, log-file setup, and all output helper functions used by
-# bootstrap.sh and every install/ module.
+# phase3-setup-bootstrap.sh and every install/ module.
 # ─────────────────────────────────────────────────────────────────────────────
 
 BOOTSTRAP_LOG="${BOOTSTRAP_LOG:-$HOME/.linux-init-bootstrap.log}"
@@ -101,7 +101,7 @@ success() { _log "SUCCESS $*";  echo -e "\n${GREEN}${BOLD}✔  $*${RESET}"; }
 _confirm() {
   local prompt="$1"
   _log "CONFIRM $prompt"
-  if ! { true </dev/tty; } 2>/dev/null; then
+  if [[ "${NON_INTERACTIVE:-false}" == "true" ]] || ! { true </dev/tty; } 2>/dev/null; then
     echo -e "  ${BLUE}→${RESET} ${prompt} ${DIM}[Y/n] — non-interactive, defaulting to Y${RESET}"
     return 0
   fi

@@ -7,7 +7,7 @@
 UV_INSTALL_DIR="${UV_INSTALL_DIR:-$HOME/Dev/tools/python/uv/bin}"
 UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$HOME/Dev/tools/python/versions}"
 
-_REINSTALL_HINT="To reinstall, run: bash bootstrap.sh --clean-tools"
+_REINSTALL_HINT="To reinstall, run: bash setup/phase3-setup-bootstrap.sh --clean-tools"
 
 # ─────────────────────────────────────────────
 # Summary: install uv and optionally Python LTS

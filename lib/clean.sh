@@ -2,7 +2,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # lib/clean.sh
 # Teardown helpers for --clean-install, --clean-tools, and --reinstall flags.
-# Sourced by bootstrap.sh; requires output helpers and state helpers.
+# Sourced by phase3-setup-bootstrap.sh; requires output helpers and state helpers.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ─────────────────────────────────────────────
@@ -10,6 +10,10 @@
 # ─────────────────────────────────────────────
 _clean_install() {
   warn "--clean-install: this will permanently remove all tools, dotfiles, and the state file."
+  if [[ "${NON_INTERACTIVE:-false}" == "true" ]]; then
+    warn "Non-interactive mode — --clean-install requires explicit confirmation; aborting"
+    return 0
+  fi
   printf "  Continue? [y/N]: "
   local confirm
   read -r confirm </dev/tty
@@ -77,6 +81,10 @@ _do_clean_tools() {
 # ─────────────────────────────────────────────
 _clean_tools() {
   warn "--clean-tools: this will remove all dev tool directories and tool state entries."
+  if [[ "${NON_INTERACTIVE:-false}" == "true" ]]; then
+    warn "Non-interactive mode — --clean-tools requires explicit confirmation; aborting"
+    return 0
+  fi
   printf "  Continue? [y/N]: "
   local confirm
   read -r confirm </dev/tty
@@ -93,6 +101,10 @@ _clean_tools() {
 # ─────────────────────────────────────────────
 _reinstall() {
   warn "--reinstall: this will remove all dev tools, reset the full bootstrap state, and trigger a complete reinstall."
+  if [[ "${NON_INTERACTIVE:-false}" == "true" ]]; then
+    warn "Non-interactive mode — --reinstall requires explicit confirmation; aborting"
+    return 0
+  fi
   printf "  Continue? [y/N]: "
   local confirm
   read -r confirm </dev/tty
@@ -107,6 +119,6 @@ _reinstall() {
   rm -f "$HOME/.bootstrap-state"
   ok "State file removed"
 
-  success "Ready for full reinstall — re-run bootstrap.sh to continue"
+  success "Ready for full reinstall — re-run setup/phase3-setup-bootstrap.sh to continue"
   exit 0
 }
